@@ -1,30 +1,38 @@
 # agentrust-io Examples
 
-End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working together across real deployment scenarios.
+End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working together across deployment scenarios. Each example is self-contained and runnable on a fresh cloud VM.
 
 ## Examples
 
-| Directory | Scenario | Hardware | Regulatory |
-|-----------|----------|----------|------------|
-| `financial-services-kyc/` | KYC agent with Cedar policy enforcement | OPAQUEProvider | EU AI Act Art. 9/12 |
-| `healthcare-clinical/` | Clinical data agent, SEV-SNP attested | SEVSNPProvider | HIPAA §164.312 |
-| `multi-tenant-saas/` | SaaS platform multi-tenant governance | OPAQUEProvider | Customer contract SLA |
-| `startup-tpm-onramp/` | 15-minute quickstart on any VM | TPMProvider | Future-proofing |
-| `cc-summit-demo/` | CC Summit June 23 — Scene A + Scene B demo scripts | OPAQUEProvider | — |
+| Directory | Scenario | Hardware | Regulatory alignment |
+|---|---|---|---|
+| `financial-services/` | Payment agent with Cedar policy — blocks PII in tool call parameters | SEV-SNP / TDX | EU AI Act Art. 9/12, DORA Art. 9 |
+| `healthcare/` | Clinical data agent with field-level redaction | SEV-SNP | HIPAA §164.312 |
+| `multi-tenant-saas/` | SaaS platform with per-tenant policy isolation | TDX | Customer contract SLA |
+| `startup-tpm/` | 15-minute quickstart on any cloud VM with Trusted Launch | TPM 2.0 | Development / staging |
 
-## Quickstart (15 minutes)
+## Quickstart
+
+The fastest path: any Azure, AWS, or GCP VM with Trusted Launch enabled.
 
 ```bash
-pip install agt-core cmcp-gateway
-# Start with TPM advisory mode — any Azure/AWS/GCP VM with Trusted Launch
-cp examples/startup-tpm-onramp/cmcp-config.yaml .
-cmcp start --config cmcp-config.yaml
+pip install cmcp-gateway agent-manifest
+cp examples/startup-tpm/cmcp-config.yaml .
+cmcp start --config cmcp-config.yaml --enforcement advisory
 ```
+
+This starts the gateway in advisory mode (no blocking, full logging) and emits a TRACE Trust Record for every MCP tool call.
+
+## Prerequisites
+
+- Python 3.11+
+- An MCP server to protect (existing servers work unchanged)
+- For Level 1 attestation: a VM with TPM 2.0, AMD SEV-SNP, or Intel TDX
 
 ## Status
 
-Private. Going public Week 4 (Jun 17-23) ahead of CC Summit.
+Launching at Confidential Computing Summit, San Francisco, June 23 2026.
 
 ## License
 
-MIT
+Apache 2.0

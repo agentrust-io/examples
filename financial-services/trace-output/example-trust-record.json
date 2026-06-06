@@ -1,0 +1,30 @@
+{
+  "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
+  "iat": 1750000000,
+  "subject": "spiffe://bank.eu/agents/credit-risk-analyst/run-abc123",
+  "model": {
+    "provider": "bank-internal",
+    "name": "credit-risk-llm-eu",
+    "version": "2.1.0",
+    "digest": {"sha-256": "a3f9b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"}
+  },
+  "runtime": {
+    "platform": "software-only",
+    "tee_type": "dev-mode",
+    "measurement": "DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION",
+    "region": "westeurope"
+  },
+  "policy": {
+    "framework": "cedar",
+    "bundle_hash": "sha256:b8c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2",
+    "enforcement_mode": "enforce",
+    "version": "credit-risk-v4.2"
+  },
+  "data_class": "confidential",
+  "tool_transcript": [
+    {"tool": "finance.document_reader", "data_class": "confidential", "decision": "allow"},
+    {"tool": "finance.credit_score_lookup", "data_class": "confidential", "decision": "allow"},
+    {"tool": "finance.risk_report_writer", "data_class": "internal", "decision": "allow"}
+  ],
+  "cnf": {"kid": "cmcp-a1b2c3d4"}
+}

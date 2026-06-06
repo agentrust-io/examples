@@ -1,0 +1,6 @@
+policy_bundle_path: ./policy
+catalog_path: ./catalog.json
+listen_addr: 0.0.0.0:8443
+attestation:
+  provider: auto
+  enforcement_mode: advisory

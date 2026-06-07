@@ -2,13 +2,13 @@
 
 End-to-end demo of a credit risk agent processing client financial documents through a cMCP gateway with Cedar policy enforcement and TRACE Trust Records for EU regulatory compliance (EU AI Act, MiFID II, DORA, GDPR).
 
-Built for the GTC Berlin 2026 session: *AI Agent Compliance for European Private Banks*.
+End-to-end example: AI agent compliance for European private banks using cMCP and TRACE attestation.
 
 ---
 
 ## What the demo shows
 
-This demo corresponds directly to the GTC Berlin proposal talking points:
+This example demonstrates:
 
 **1. Cryptographic proof of which tools an AI agent called**
 The cMCP gateway intercepts every MCP tool call and records it in a signed TRACE Trust Record. An auditor or regulator can verify after the fact exactly which tools ran, in what order, with what data classifications — without trusting the agent process itself.

@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON files
+        run: |
+          find . -name "*.json" -not -path "./.git/*" | while read f; do
+            python3 -m json.tool "$f" > /dev/null && echo "OK: $f" || exit 1
+          done
+      - name: Validate YAML files
+        run: |
+          pip install pyyaml -q
+          find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | while read f; do
+            python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" "$f" && echo "OK: $f" || exit 1
+          done

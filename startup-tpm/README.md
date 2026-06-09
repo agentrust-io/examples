@@ -1,12 +1,12 @@
-# startup-tpm: 15-Minute cMCP Quickstart
+﻿# startup-tpm: 15-Minute cMCP Quickstart
 
-Get a cMCP gateway running with TPM-backed TRACE Trust Records in under 15 minutes. Works on any cloud VM with TPM 2.0 (Azure Trusted Launch, AWS Nitro, GCP Shielded VM) or with `CMCP_DEV_MODE=1` for local development — no hardware required for testing.
+Get a cMCP Runtime running with TPM-backed TRACE Trust Records in under 15 minutes. Works on any cloud VM with TPM 2.0 (Azure Trusted Launch, AWS Nitro, GCP Shielded VM) or with `CMCP_DEV_MODE=1` for local development — no hardware required for testing.
 
 ---
 
 ## What you will have at the end
 
-- A cMCP gateway running on port 8443
+- A cMCP Runtime running on port 8443
 - A Cedar policy that permits all tool calls (replace before production)
 - A one-tool catalog (`test.echo`)
 - A TRACE Trust Record you can inspect and verify
@@ -24,7 +24,7 @@ Estimated time: 15 minutes on a fresh VM, 5 minutes if Python is already install
 | curl | any | For the test tool call |
 | TPM 2.0 | optional | Required for hardware attestation; omit with `CMCP_DEV_MODE=1` |
 
-No MCP server is required — the gateway runs a built-in echo responder for the `test.echo` tool.
+No MCP server is required — the runtime runs a built-in echo responder for the `test.echo` tool.
 
 ---
 
@@ -55,7 +55,7 @@ The directory contains:
 
 ```
 startup-tpm/
-  cmcp-config.yaml      gateway configuration
+  cmcp-config.yaml      runtime configuration
   catalog.json          one-tool catalog (test.echo)
   policy/
     manifest.json       policy bundle metadata
@@ -78,13 +78,13 @@ attestation:
   enforcement_mode: advisory
 ```
 
-`enforcement_mode: advisory` means the gateway logs policy violations but does not block calls. Change to `enforcing` before production.
+`enforcement_mode: advisory` means the runtime logs policy violations but does not block calls. Change to `enforcing` before production.
 
 `provider: auto` selects the best available attestation source: TPM 2.0 if present, software-only otherwise.
 
 ---
 
-## Step 4 — Start the gateway
+## Step 4 — Start the runtime
 
 ### With hardware TPM (Azure Trusted Launch, AWS Nitro, GCP Shielded VM)
 
@@ -92,7 +92,7 @@ attestation:
 cmcp start --config startup-tpm/cmcp-config.yaml
 ```
 
-The gateway will print the TPM attestation measurement on startup.
+The runtime will print the TPM attestation measurement on startup.
 
 ### Without hardware TPM (local dev, CI)
 
@@ -100,7 +100,7 @@ The gateway will print the TPM attestation measurement on startup.
 CMCP_DEV_MODE=1 cmcp start --config startup-tpm/cmcp-config.yaml
 ```
 
-`CMCP_DEV_MODE=1` sets `tee_type: dev-mode` in the TRACE record and marks the measurement `DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION`. The gateway is fully functional but the attestation is not hardware-backed.
+`CMCP_DEV_MODE=1` sets `tee_type: dev-mode` in the TRACE record and marks the measurement `DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION`. The runtime is fully functional but the attestation is not hardware-backed.
 
 Expected startup output:
 
@@ -145,7 +145,7 @@ Expected response:
 curl http://localhost:8443/trace | python3 -m json.tool
 ```
 
-The TRACE record covers the entire session (all tool calls since the gateway started). Example output:
+The TRACE record covers the entire session (all tool calls since the runtime started). Example output:
 
 ```json
 {
@@ -229,6 +229,6 @@ $env:CMCP_DEV_MODE = "1"
 cmcp start --config startup-tpm/cmcp-config.yaml
 ```
 
-**Gateway exits immediately**
+**Runtime exits immediately**
 
 Check that `policy/` and `catalog.json` exist relative to the working directory from which you run `cmcp start`. The `policy_bundle_path` and `catalog_path` in `cmcp-config.yaml` are resolved relative to the config file's location, not the working directory.

@@ -1,6 +1,6 @@
-# financial-services: EU Credit Risk Agent Demo
+﻿# financial-services: EU Credit Risk Agent Demo
 
-End-to-end demo of a credit risk agent processing client financial documents through a cMCP gateway with Cedar policy enforcement and TRACE Trust Records for EU regulatory compliance (EU AI Act, MiFID II, DORA, GDPR).
+End-to-end demo of a credit risk agent processing client financial documents through a cMCP Runtime with Cedar policy enforcement and TRACE Trust Records for EU regulatory compliance (EU AI Act, MiFID II, DORA, GDPR).
 
 End-to-end example: AI agent compliance for European private banks using cMCP and TRACE attestation.
 
@@ -11,7 +11,7 @@ End-to-end example: AI agent compliance for European private banks using cMCP an
 This example demonstrates:
 
 **1. Cryptographic proof of which tools an AI agent called**
-The cMCP gateway intercepts every MCP tool call and records it in a signed TRACE Trust Record. An auditor or regulator can verify after the fact exactly which tools ran, in what order, with what data classifications — without trusting the agent process itself.
+The cMCP Runtime intercepts every MCP tool call and records it in a signed TRACE Trust Record. An auditor or regulator can verify after the fact exactly which tools ran, in what order, with what data classifications — without trusting the agent process itself.
 
 **2. Cedar policy as machine-readable compliance**
 The three Cedar rules in `policy/allow.cedar` encode the bank's compliance requirements directly: which workflows may call which tools, when a large credit recommendation must go to a human reviewer, and how to prevent accidental data-class downgrade. Policy-as-code means the same rules that block a call are the rules that go into the audit file.
@@ -23,7 +23,7 @@ Article 12 requires high-risk AI systems to automatically log sufficient informa
 MiFID II Article 25 requires that investment firms document the basis for any investment recommendation. For an AI-assisted credit decision, the TRACE record provides the tool-call audit trail showing that credit bureau data was consulted and a human reviewer was required for exposures above €500k.
 
 **5. DORA Article 9 ICT risk — immutable logs**
-The gateway runs in an attested environment (TEE or TPM). The TRACE record is signed by the gateway's attestation key. If a log is tampered with, the signature verification fails.
+The runtime runs in an attested environment (TEE or TPM). The TRACE record is signed by the runtime's attestation key. If a log is tampered with, the signature verification fails.
 
 **6. GDPR data minimisation in tool definitions**
 The catalog schema enforces `sensitivity_level` and `compliance_domain` on every tool. The Cedar policy forbids confidential-data tools if the session sensitivity has been downgraded to `public`. This is the machine-enforceable equivalent of the GDPR data-minimisation principle.
@@ -40,7 +40,7 @@ The catalog schema enforces `sensitivity_level` and `compliance_domain` on every
                              │  tools/call (MCP)
                              ▼
   ┌─────────────────────────────────────────────────────────────────┐
-  │              cMCP Gateway  :8443                                │
+  │              cMCP Runtime  :8443                                │
   │                                                                  │
   │  ┌──────────────┐  ┌─────────────────┐  ┌───────────────────┐  │
   │  │ Cedar engine │  │ Catalog checker │  │ TRACE recorder    │  │
@@ -70,7 +70,7 @@ The catalog schema enforces `sensitivity_level` and `compliance_domain` on every
 | agent-manifest | latest | `pip install agent-manifest` |
 | curl | any | For verification steps |
 
-No hardware TEE or TPM is required for this demo. The gateway runs in `CMCP_DEV_MODE=1`.
+No hardware TEE or TPM is required for this demo. The runtime runs in `CMCP_DEV_MODE=1`.
 
 ---
 
@@ -102,7 +102,7 @@ cmcp-verify --version
 
 ```
 financial-services/
-  cmcp-config.yaml              Gateway configuration
+  cmcp-config.yaml              Runtime configuration
   catalog.json                  Three-tool catalog
   policy/
     manifest.json               Policy bundle metadata
@@ -164,7 +164,7 @@ forbid (
 };
 ```
 
-Prevents a session that has been flagged `public` from calling tools that handle confidential data. This enforces the GDPR data-minimisation principle at the gateway layer.
+Prevents a session that has been flagged `public` from calling tools that handle confidential data. This enforces the GDPR data-minimisation principle at the runtime layer.
 
 **Rule 4 — Catch-all permit**
 
@@ -178,7 +178,7 @@ Any call not matched by a forbid is allowed. Removes the need to enumerate every
 
 ## Step 5 — Review the catalog
 
-`catalog.json` registers three tools with their approved definitions, data classifications, and definition hashes. The definition hash is `sha256(json.dumps(approved_definition, sort_keys=True, separators=(',',':')))`. The gateway rejects any tool call where the server returns a definition that does not match the hash — preventing prompt-injection via MCP tool description tampering.
+`catalog.json` registers three tools with their approved definitions, data classifications, and definition hashes. The definition hash is `sha256(json.dumps(approved_definition, sort_keys=True, separators=(',',':')))`. The runtime rejects any tool call where the server returns a definition that does not match the hash — preventing prompt-injection via MCP tool description tampering.
 
 | Tool | compliance_domain | sensitivity_level | definition_hash (first 16 chars) |
 |---|---|---|---|
@@ -188,7 +188,7 @@ Any call not matched by a forbid is allowed. Removes the need to enumerate every
 
 ---
 
-## Step 6 — Start the gateway
+## Step 6 — Start the runtime
 
 ```bash
 CMCP_DEV_MODE=1 cmcp start --config financial-services/cmcp-config.yaml
@@ -354,7 +354,7 @@ For a production deployment with hardware TEE, the attestation line reads:
 | `policy.version` | `credit-risk-v4.2` | From `policy/manifest.json` |
 | `data_class` | `confidential` | Highest sensitivity across all calls |
 | `tool_transcript` | array | One entry per tool call, in order |
-| `cnf.kid` | `cmcp-a1b2c3d4` | Key ID of the gateway signing key |
+| `cnf.kid` | `cmcp-a1b2c3d4` | Key ID of the runtime signing key |
 
 ---
 
@@ -398,7 +398,7 @@ openssl s_client -connect mcp.bank.eu:443 < /dev/null 2>/dev/null \
 
 ### Trigger the €500k escalation rule
 
-Edit `credit_risk_agent.py` and change `AMOUNT_EUR = 250_000` to `AMOUNT_EUR = 750_000`. Re-run the agent. The gateway will return an advisory deny for the `finance.risk_report_writer` call:
+Edit `credit_risk_agent.py` and change `AMOUNT_EUR = 250_000` to `AMOUNT_EUR = 750_000`. Re-run the agent. The runtime will return an advisory deny for the `finance.risk_report_writer` call:
 
 ```json
 {
@@ -418,14 +418,14 @@ Edit `credit_risk_agent.py` and change `AMOUNT_EUR = 250_000` to `AMOUNT_EUR = 7
 
 ### Switch to enforcing mode
 
-Change `enforcement_mode: enforcing` in `cmcp-config.yaml` (it is already set to `enforcing`). In dev mode the gateway enforces the policy but the attestation is not hardware-backed. Change `CMCP_DEV_MODE=1` to use a real TPM or TEE for production.
+Change `enforcement_mode: enforcing` in `cmcp-config.yaml` (it is already set to `enforcing`). In dev mode the runtime enforces the policy but the attestation is not hardware-backed. Change `CMCP_DEV_MODE=1` to use a real TPM or TEE for production.
 
 ### Add a new tool
 
 1. Define the tool in your MCP server.
 2. Add an entry to `catalog.json` with the correct `definition_hash`.
 3. Add a Cedar rule in `allow.cedar` if needed.
-4. Restart the gateway with `cmcp start --config financial-services/cmcp-config.yaml --reload`.
+4. Restart the runtime with `cmcp start --config financial-services/cmcp-config.yaml --reload`.
 
 The definition hash is:
 
@@ -442,11 +442,11 @@ def definition_hash(approved_definition: dict) -> str:
 1. Provision an Azure VM with Trusted Launch enabled (Trusted Launch is the default for most VM sizes as of 2025).
 2. Install the vTPM extension if not already present.
 3. Remove `CMCP_DEV_MODE=1` from the startup command.
-4. The gateway will automatically use the vTPM. The `runtime.tee_type` field in the TRACE record will be `tpm2` and `runtime.measurement` will contain the PCR0 value.
+4. The runtime will automatically use the vTPM. The `runtime.tee_type` field in the TRACE record will be `tpm2` and `runtime.measurement` will contain the PCR0 value.
 
 ### Connect an agent manifest
 
-If you publish an agent manifest with `agent-manifest`, the gateway can cross-check the manifest's `allowed_tools` list against the catalog:
+If you publish an agent manifest with `agent-manifest`, the runtime can cross-check the manifest's `allowed_tools` list against the catalog:
 
 ```bash
 agent-manifest validate --manifest agent-manifest.json --catalog financial-services/catalog.json
@@ -456,7 +456,7 @@ agent-manifest validate --manifest agent-manifest.json --catalog financial-servi
 
 ## Troubleshooting
 
-**Gateway cannot find the policy bundle**
+**Runtime cannot find the policy bundle**
 
 Make sure you run `cmcp start` from the root of the examples repo, or use an absolute path:
 
@@ -466,7 +466,7 @@ cmcp start --config /path/to/examples/financial-services/cmcp-config.yaml
 
 **`httpx.ConnectError` in the agent script**
 
-The gateway is not running, or is running on a different port. Check:
+The runtime is not running, or is running on a different port. Check:
 
 ```bash
 curl http://localhost:8443/health

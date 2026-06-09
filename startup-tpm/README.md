@@ -31,7 +31,7 @@ No MCP server is required — the runtime runs a built-in echo responder for the
 ## Step 1 — Install
 
 ```bash
-pip install cmcp-gateway
+pip install cmcp-runtime
 ```
 
 Verify:
@@ -40,7 +40,7 @@ Verify:
 cmcp --version
 ```
 
-Expected output: `cmcp-gateway 0.x.y`
+Expected output: `cmcp-runtime 0.x.y`
 
 ---
 
@@ -218,8 +218,8 @@ listen_addr: 0.0.0.0:9443
 # Make sure pip's bin directory is on PATH:
 python3 -m cmcp --version
 # or:
-pip show cmcp-gateway | grep Location
-export PATH="$PATH:$(pip show cmcp-gateway | grep Location | cut -d' ' -f2)/../../../bin"
+pip show cmcp-runtime | grep Location
+export PATH="$PATH:$(pip show cmcp-runtime | grep Location | cut -d' ' -f2)/../../../bin"
 ```
 
 **`CMCP_DEV_MODE` not recognised on Windows**

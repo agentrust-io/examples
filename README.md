@@ -1,5 +1,5 @@
 ﻿[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![cMCP](https://img.shields.io/badge/Uses-cMCP_Gateway-7c3aed)](https://github.com/agentrust-io/cmcp)
+[![cMCP](https://img.shields.io/badge/Uses-cMCP_Runtime-7c3aed)](https://github.com/agentrust-io/cmcp)
 [![Agent Manifest](https://img.shields.io/badge/Uses-Agent_Manifest-0ea5e9)](https://github.com/agentrust-io/agent-manifest)
 
 # agentrust-io Examples
@@ -20,7 +20,7 @@ End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working 
 The fastest path: any Azure, AWS, or GCP VM with Trusted Launch enabled.
 
 ```bash
-pip install cmcp-gateway agent-manifest
+pip install cmcp-runtime agent-manifest
 cp examples/startup-tpm/cmcp-config.yaml .
 cmcp start --config cmcp-config.yaml --enforcement advisory
 ```

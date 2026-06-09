@@ -65,8 +65,8 @@ The catalog schema enforces `sensitivity_level` and `compliance_domain` on every
 |---|---|---|
 | Python | 3.11+ | `python3 --version` |
 | pip | any recent | `pip --version` |
-| httpx | 0.27+ | installed by `pip install cmcp-gateway` |
-| cmcp-gateway | latest | `pip install cmcp-gateway` |
+| httpx | 0.27+ | installed by `pip install cmcp-runtime` |
+| cmcp-runtime | latest | `pip install cmcp-runtime` |
 | agent-manifest | latest | `pip install agent-manifest` |
 | curl | any | For verification steps |
 
@@ -86,7 +86,7 @@ cd examples
 ## Step 2 — Install dependencies
 
 ```bash
-pip install cmcp-gateway agent-manifest httpx
+pip install cmcp-runtime agent-manifest httpx
 ```
 
 Verify:

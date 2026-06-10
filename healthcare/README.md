@@ -6,14 +6,14 @@ End-to-end demo of a hospital AI agent processing patient records through a cMCP
 
 ## What the demo shows
 
-**1. EU AI Act Article 14 — human oversight for high-risk AI**
+**1. EU AI Act Article 14: human oversight for high-risk AI**
 Article 14 requires that high-risk AI systems in healthcare allow human supervisors to intervene. The Cedar Rule 2 in `policy/allow.cedar` operationalises this: any treatment plan write where `patient_risk_category == "high"` is blocked until an attending physician approves. The TRACE Trust Record records the advisory deny so the block is auditable.
 
 **2. HIPAA PHI protection at the tool boundary**
-All three tools are classified `compliance_domain: hipaa_phi` and `sensitivity_level: confidential` in the catalog. Cedar Rule 3 prevents any session that has been downgraded to `public` sensitivity from calling any tool in the `hipaa_phi` domain — enforcing the minimum-necessary principle at runtime rather than in application code.
+All three tools are classified `compliance_domain: hipaa_phi` and `sensitivity_level: confidential` in the catalog. Cedar Rule 3 prevents any session that has been downgraded to `public` sensitivity from calling any tool in the `hipaa_phi` domain, enforcing the minimum-necessary principle at runtime rather than in application code.
 
 **3. Cryptographic proof of tool call sequence**
-The cMCP Runtime records every EHR tool call in a signed, hash-chained audit log. The TRACE Trust Record seals the entire session — which tools ran, in what order, whether a HITL block fired — into a JWT signed by the runtime's attestation key. A compliance officer or regulator can verify the record without trusting the agent process.
+The cMCP Runtime records every EHR tool call in a signed, hash-chained audit log. The TRACE Trust Record seals the entire session (which tools ran, in what order, whether a HITL block fired) into a JWT signed by the runtime's attestation key. A compliance officer or regulator can verify the record without trusting the agent process.
 
 **4. Two demo paths: standard and HITL**
 Run without flags to see the happy path (all three calls allowed). Run with `--trigger-hitl` to see the EU AI Act Art. 14 block fire on the treatment plan write.
@@ -62,7 +62,7 @@ No hardware TEE or TPM required for this demo. The runtime runs in `CMCP_DEV_MOD
 
 ---
 
-## Step 1 — Clone the examples repo
+## Step 1 - Clone the examples repo
 
 ```bash
 git clone https://github.com/agentrust-io/examples.git
@@ -71,7 +71,7 @@ cd examples
 
 ---
 
-## Step 2 — Install dependencies
+## Step 2 - Install dependencies
 
 ```bash
 pip install cmcp-runtime httpx
@@ -79,7 +79,7 @@ pip install cmcp-runtime httpx
 
 ---
 
-## Step 3 — Review the files
+## Step 3 - Review the files
 
 ```
 healthcare/
@@ -97,11 +97,11 @@ healthcare/
 
 ---
 
-## Step 4 — Understand the Cedar policy
+## Step 4 - Understand the Cedar policy
 
 `policy/allow.cedar` contains four rules:
 
-**Rule 1 — Workflow permit**
+**Rule 1 - Workflow permit**
 
 ```cedar
 permit (
@@ -115,7 +115,7 @@ permit (
 
 Only the `clinical-decision-support` workflow may call the three EHR tools.
 
-**Rule 2 — EU AI Act Art. 14 HITL block**
+**Rule 2 - EU AI Act Art. 14 HITL block**
 
 ```cedar
 forbid (
@@ -133,7 +133,7 @@ forbid (
 
 Any treatment plan write where `patient_risk_category == "high"` is blocked with an advisory deny. The advice payload is returned to the caller and recorded in the TRACE Trust Record.
 
-**Rule 3 — HIPAA PHI session protection**
+**Rule 3 - HIPAA PHI session protection**
 
 ```cedar
 forbid (
@@ -148,7 +148,7 @@ forbid (
 
 Prevents accidental PHI access if session sensitivity is downgraded.
 
-**Rule 4 — Catch-all permit**
+**Rule 4 - Catch-all permit**
 
 ```cedar
 permit (principal, action, resource);
@@ -156,7 +156,7 @@ permit (principal, action, resource);
 
 ---
 
-## Step 5 — Start the runtime
+## Step 5 - Start the runtime
 
 ```bash
 CMCP_DEV_MODE=1 cmcp start --config healthcare/cmcp-config.yaml
@@ -179,7 +179,7 @@ Leave this terminal open.
 
 ---
 
-## Step 6 — Run the happy path (no HITL)
+## Step 6 - Run the happy path (no HITL)
 
 In a second terminal:
 
@@ -213,7 +213,7 @@ All tool calls completed. TRACE Trust Record generated.
 
 ---
 
-## Step 7 — Run the HITL path
+## Step 7 - Run the HITL path
 
 ```bash
 python healthcare/agent/clinical_decision_agent.py --trigger-hitl
@@ -247,7 +247,7 @@ The TRACE Trust Record for the HITL path records `"decision": "advisory_deny"` f
 
 ---
 
-## Step 8 — Verify with cmcp-verify
+## Step 8 - Verify with cmcp-verify
 
 ```bash
 curl -s http://localhost:8443/trace > trace.json
@@ -271,12 +271,12 @@ Expected output:
 
 | TRACE field | EU AI Act | HIPAA |
 |---|---|---|
-| `policy.bundle_hash` | Art. 9 — risk management system version | 45 CFR 164.312 — access controls documentation |
-| `policy.version` | Art. 12 — log versioning | 45 CFR 164.308 — audit log |
-| `tool_transcript[].decision` | Art. 14 — human oversight record | 45 CFR 164.308(a)(1)(ii)(D) — activity review |
-| `data_class` (per call) | Art. 10 — data governance | 45 CFR 164.502 — minimum necessary |
-| `runtime.tee_type` + `runtime.measurement` | Art. 12 — tamper-evident logging | 45 CFR 164.312(c) — integrity |
-| `subject` | Art. 12 — traceability to specific run | 45 CFR 164.308(a)(5) — access monitoring |
+| `policy.bundle_hash` | Art. 9: risk management system version | 45 CFR 164.312: access controls documentation |
+| `policy.version` | Art. 12: log versioning | 45 CFR 164.308: audit log |
+| `tool_transcript[].decision` | Art. 14: human oversight record | 45 CFR 164.308(a)(1)(ii)(D): activity review |
+| `data_class` (per call) | Art. 10: data governance | 45 CFR 164.502: minimum necessary |
+| `runtime.tee_type` + `runtime.measurement` | Art. 12: tamper-evident logging | 45 CFR 164.312(c): integrity |
+| `subject` | Art. 12: traceability to specific run | 45 CFR 164.308(a)(5): access monitoring |
 
 ---
 

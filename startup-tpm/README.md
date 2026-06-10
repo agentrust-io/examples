@@ -1,6 +1,6 @@
-﻿# startup-tpm: 15-Minute cMCP Quickstart
+# startup-tpm: 15-Minute cMCP Quickstart
 
-Get a cMCP Runtime running with TPM-backed TRACE Trust Records in under 15 minutes. Works on any cloud VM with TPM 2.0 (Azure Trusted Launch, AWS Nitro, GCP Shielded VM) or with `CMCP_DEV_MODE=1` for local development — no hardware required for testing.
+Get a cMCP Runtime running with TPM-backed TRACE Trust Records in under 15 minutes. Works on any cloud VM with TPM 2.0 (Azure Trusted Launch, AWS Nitro, GCP Shielded VM) or with `CMCP_DEV_MODE=1` for local development (no hardware required for testing).
 
 ---
 
@@ -24,11 +24,11 @@ Estimated time: 15 minutes on a fresh VM, 5 minutes if Python is already install
 | curl | any | For the test tool call |
 | TPM 2.0 | optional | Required for hardware attestation; omit with `CMCP_DEV_MODE=1` |
 
-No MCP server is required — the runtime runs a built-in echo responder for the `test.echo` tool.
+No MCP server is required; the runtime runs a built-in echo responder for the `test.echo` tool.
 
 ---
 
-## Step 1 — Install
+## Step 1 - Install
 
 ```bash
 pip install cmcp-runtime
@@ -44,7 +44,7 @@ Expected output: `cmcp-runtime 0.x.y`
 
 ---
 
-## Step 2 — Get the quickstart files
+## Step 2 - Get the quickstart files
 
 ```bash
 git clone https://github.com/agentrust-io/examples.git
@@ -67,7 +67,7 @@ startup-tpm/
 
 ---
 
-## Step 3 — Review the config
+## Step 3 - Review the config
 
 `cmcp-config.yaml`:
 
@@ -86,7 +86,7 @@ attestation:
 
 ---
 
-## Step 4 — Start the runtime
+## Step 4 - Start the runtime
 
 ### With hardware TPM (Azure Trusted Launch, AWS Nitro, GCP Shielded VM)
 
@@ -115,9 +115,9 @@ Expected startup output:
 
 ---
 
-## Step 5 — Make a test tool call
+## Step 5 - Make a test tool call
 
-**Option A — agent script (recommended):**
+**Option A - agent script (recommended):**
 
 ```bash
 python startup-tpm/agent/echo_agent.py
@@ -125,7 +125,7 @@ python startup-tpm/agent/echo_agent.py
 
 The script calls `test.echo`, prints the policy decision, and fetches the TRACE Trust Record in one shot.
 
-**Option B — curl:**
+**Option B - curl:**
 
 ```bash
 curl -X POST http://localhost:8443/mcp \
@@ -149,7 +149,7 @@ Expected response:
 
 ---
 
-## Step 6 — Get the TRACE Trust Record
+## Step 6 - Get the TRACE Trust Record
 
 ```bash
 curl http://localhost:8443/trace | python3 -m json.tool
@@ -182,7 +182,7 @@ The TRACE record covers the entire session (all tool calls since the runtime sta
 
 ---
 
-## Step 7 — Verify the TRACE record (optional)
+## Step 7 - Verify the TRACE record (optional)
 
 ```bash
 curl -s http://localhost:8443/trace > trace.json

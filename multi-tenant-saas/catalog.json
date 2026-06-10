@@ -1,0 +1,82 @@
+[
+  {
+    "tool_name": "saas.user_data_export",
+    "server": {
+      "display_name": "SaaS Platform MCP Server",
+      "url": "http://localhost:8080/mcp",
+      "tls_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "transport": "http-sse"
+    },
+    "approved_definition": {
+      "description": "Export user account and usage data for the tenant",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {"type": "string"},
+          "format": {"type": "string", "enum": ["json", "csv"]},
+          "gdpr_justification": {"type": "string"}
+        },
+        "required": ["user_id"]
+      }
+    },
+    "definition_hash": "sha256:f12befaccc0eb9801583cb94d6902f6899364d13a3d6b2f8c07f450aee4dc521",
+    "compliance_domain": "pii",
+    "requires_baa": false,
+    "sensitivity_level": "confidential",
+    "added_at": "2026-06-01T00:00:00Z",
+    "approved_by": "platform-security@saas.example"
+  },
+  {
+    "tool_name": "saas.analytics_query",
+    "server": {
+      "display_name": "SaaS Platform MCP Server",
+      "url": "http://localhost:8080/mcp",
+      "tls_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "transport": "http-sse"
+    },
+    "approved_definition": {
+      "description": "Run a read-only analytics query over tenant event data",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "metric": {"type": "string"},
+          "time_range_days": {"type": "integer"},
+          "filters": {"type": "object"}
+        },
+        "required": ["metric"]
+      }
+    },
+    "definition_hash": "sha256:dbfe9ce96ebc7580a162e45e82c65c076e62f39c293c32b93ed1ce20a4b59655",
+    "compliance_domain": "internal",
+    "requires_baa": false,
+    "sensitivity_level": "internal",
+    "added_at": "2026-06-01T00:00:00Z",
+    "approved_by": "platform-security@saas.example"
+  },
+  {
+    "tool_name": "saas.config_update",
+    "server": {
+      "display_name": "SaaS Platform MCP Server",
+      "url": "http://localhost:8080/mcp",
+      "tls_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "transport": "http-sse"
+    },
+    "approved_definition": {
+      "description": "Update platform configuration settings for the tenant",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "key": {"type": "string"},
+          "value": {"type": "string"}
+        },
+        "required": ["key", "value"]
+      }
+    },
+    "definition_hash": "sha256:9bf90691ce6f3ed9a18da33b6b41f71d12ee77e51d8a81137c1723ea97e1647a",
+    "compliance_domain": "internal",
+    "requires_baa": false,
+    "sensitivity_level": "internal",
+    "added_at": "2026-06-01T00:00:00Z",
+    "approved_by": "platform-security@saas.example"
+  }
+]

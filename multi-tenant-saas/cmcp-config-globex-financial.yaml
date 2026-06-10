@@ -1,0 +1,8 @@
+policy_bundle_path: ./tenants/globex-financial/policy
+catalog_path: ./catalog.json
+listen_addr: 0.0.0.0:8443
+audit_db_path: ./audit-globex-financial.db
+attestation:
+  provider: auto
+  enforcement_mode: enforcing
+  validity_seconds: 86400

@@ -61,6 +61,8 @@ startup-tpm/
     manifest.json       policy bundle metadata
     allow.cedar         permit-all policy
     schema.cedarschema  Cedar schema (minimal)
+  agent/
+    echo_agent.py       minimal agent script
 ```
 
 ---
@@ -115,7 +117,15 @@ Expected startup output:
 
 ## Step 5 — Make a test tool call
 
-In a second terminal:
+**Option A — agent script (recommended):**
+
+```bash
+python startup-tpm/agent/echo_agent.py
+```
+
+The script calls `test.echo`, prints the policy decision, and fetches the TRACE Trust Record in one shot.
+
+**Option B — curl:**
 
 ```bash
 curl -X POST http://localhost:8443/mcp \

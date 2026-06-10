@@ -1,0 +1,42 @@
+{
+  "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
+  "iat": 1750000000,
+  "subject": "spiffe://saas.example/agents/analytics-workflow/run-jkl012",
+  "runtime": {
+    "platform": "software-only",
+    "tee_type": "dev-mode",
+    "measurement": "DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION",
+    "region": "westus2"
+  },
+  "policy": {
+    "framework": "cedar",
+    "bundle_hash": "sha256:e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3",
+    "enforcement_mode": "enforcing",
+    "version": "globex-financial-v3.2"
+  },
+  "data_class": "internal",
+  "tool_transcript": [
+    {
+      "tool": "saas.analytics_query",
+      "data_class": "internal",
+      "decision": "allow"
+    },
+    {
+      "tool": "saas.user_data_export",
+      "data_class": "confidential",
+      "decision": "deny"
+    },
+    {
+      "tool": "saas.config_update",
+      "data_class": "internal",
+      "decision": "advisory_deny",
+      "advice": {
+        "reason": "config-update-requires-admin-workflow",
+        "action": "advisory-log-and-notify-security"
+      }
+    }
+  ],
+  "cnf": {
+    "kid": "cmcp-d4e5f6a7"
+  }
+}

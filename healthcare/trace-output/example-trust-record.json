@@ -1,0 +1,46 @@
+{
+  "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
+  "iat": 1750000000,
+  "subject": "spiffe://hospital.example/agents/clinical-decision-support/run-def456",
+  "model": {
+    "provider": "hospital-internal",
+    "name": "clinical-llm-hipaa",
+    "version": "3.0.1",
+    "digest": {
+      "sha-256": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3"
+    }
+  },
+  "runtime": {
+    "platform": "software-only",
+    "tee_type": "dev-mode",
+    "measurement": "DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION",
+    "region": "eastus"
+  },
+  "policy": {
+    "framework": "cedar",
+    "bundle_hash": "sha256:c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0",
+    "enforcement_mode": "enforcing",
+    "version": "clinical-hipaa-v2.1"
+  },
+  "data_class": "confidential",
+  "tool_transcript": [
+    {
+      "tool": "ehr.patient_record_lookup",
+      "data_class": "confidential",
+      "decision": "allow"
+    },
+    {
+      "tool": "ehr.clinical_decision_support",
+      "data_class": "confidential",
+      "decision": "allow"
+    },
+    {
+      "tool": "ehr.treatment_plan_writer",
+      "data_class": "confidential",
+      "decision": "allow"
+    }
+  ],
+  "cnf": {
+    "kid": "cmcp-b2c3d4e5"
+  }
+}

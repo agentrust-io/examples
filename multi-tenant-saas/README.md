@@ -12,7 +12,7 @@ The same three tool calls produce different outcomes depending on which tenant's
 Each tenant gets their own Cedar bundle (`tenants/acme-corp/policy/` and `tenants/globex-financial/policy/`). The runtime loads one bundle at startup. Restarting with a different config file switches to the other tenant's rules. Every enforcement decision is recorded in a per-tenant TRACE Trust Record.
 
 **2. Progressive compliance posture**
-Acme Corp uses advisory enforcement for missing GDPR justifications — the call is logged and flagged but not blocked. Globex Financial, as a regulated financial firm, uses hard deny for the same scenario. The same cMCP Runtime enforces both postures; only the Cedar bundle differs.
+Acme Corp uses advisory enforcement for missing GDPR justifications: the call is logged and flagged but not blocked. Globex Financial, as a regulated financial firm, uses hard deny for the same scenario. The same cMCP Runtime enforces both postures; only the Cedar bundle differs.
 
 **3. Auditable per-tenant TRACE records**
 Because each tenant runs with a different policy version (`acme-corp-v1.0` vs `globex-financial-v3.2`), the `policy.version` field in the TRACE record identifies exactly which tenant policy was enforced. Regulators, auditors, and tenants can verify their own records independently.
@@ -97,7 +97,7 @@ No hardware TEE or TPM required for this demo. The runtime runs in `CMCP_DEV_MOD
 
 ---
 
-## Step 1 — Clone and install
+## Step 1 - Clone and install
 
 ```bash
 git clone https://github.com/agentrust-io/examples.git
@@ -107,9 +107,9 @@ pip install cmcp-runtime httpx
 
 ---
 
-## Step 2 — Run the demo for Acme Corp
+## Step 2 - Run the demo for Acme Corp
 
-**Terminal 1 — start the runtime with Acme Corp's policy:**
+**Terminal 1 - start the runtime with Acme Corp's policy:**
 
 ```bash
 CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-acme-corp.yaml
@@ -123,7 +123,7 @@ Expected startup output:
 [cmcp] listening on 0.0.0.0:8443
 ```
 
-**Terminal 2 — run the agent:**
+**Terminal 2 - run the agent:**
 
 ```bash
 python multi-tenant-saas/agent/saas_agent.py --tenant acme-corp
@@ -155,7 +155,7 @@ Running the same three tool calls against acme-corp's policy bundle.
 
 ---
 
-## Step 3 — Run the demo for Globex Financial
+## Step 3 - Run the demo for Globex Financial
 
 Stop the runtime (Ctrl-C), then restart with Globex Financial's policy:
 
@@ -202,11 +202,11 @@ Running the same three tool calls against globex-financial's policy bundle.
 
 `user_data_export` is a hard deny: the call was blocked. `config_update` is advisory.
 
-The `policy.version` field in the TRACE record shows `globex-financial-v3.2` — this is the field that identifies which tenant's policy was enforced for each session.
+The `policy.version` field in the TRACE record shows `globex-financial-v3.2`, which is the field that identifies which tenant's policy was enforced for each session.
 
 ---
 
-## Step 4 — Verify the TRACE record
+## Step 4 - Verify the TRACE record
 
 ```bash
 curl -s http://localhost:8443/trace > trace.json
@@ -239,7 +239,7 @@ The difference: Acme Corp trusts its analytics workflow to handle data exports (
 
 To demonstrate both tenants side by side without restarting, run on different ports:
 
-**Terminal 1 — Acme Corp on 8443:**
+**Terminal 1 - Acme Corp on 8443:**
 
 ```yaml
 # cmcp-config-acme-corp.yaml: listen_addr: 0.0.0.0:8443
@@ -249,7 +249,7 @@ To demonstrate both tenants side by side without restarting, run on different po
 CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-acme-corp.yaml
 ```
 
-**Terminal 2 — Globex Financial on 8444:**
+**Terminal 2 - Globex Financial on 8444:**
 
 Edit `cmcp-config-globex-financial.yaml` to set `listen_addr: 0.0.0.0:8444`, then:
 
@@ -268,7 +268,7 @@ python multi-tenant-saas/agent/saas_agent.py --tenant globex-financial --gateway
 
 ## Production path
 
-In production, per-tenant isolation is enforced by provisioning one cMCP Runtime instance per tenant (or per tenant isolation boundary), each started with that tenant's policy bundle. The runtime's TEE attestation report covers the specific policy hash that was loaded — the TRACE Trust Record is evidence that *this specific bundle* was enforced for *this session*.
+In production, per-tenant isolation is enforced by provisioning one cMCP Runtime instance per tenant (or per tenant isolation boundary), each started with that tenant's policy bundle. The runtime's TEE attestation report covers the specific policy hash that was loaded, and the TRACE Trust Record is evidence that *this specific bundle* was enforced for *this session*.
 
 Hot-reload (`policy_reload_interval_seconds` in the config) allows policy updates without restarts, but the hash pinning (`CMCP_POLICY_HASH` env var) must be updated to match the new bundle.
 

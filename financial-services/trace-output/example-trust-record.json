@@ -2,45 +2,46 @@
   "cmcp_version": "1.0",
   "trace": {
     "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
-    "iat": 1781144717,
-    "subject": "spiffe://cmcp.gateway/session/27b1aaa2-6972-4224-951e-80cb9c89003a",
+    "iat": 1781193684,
+    "subject": "spiffe://cmcp.gateway/session/7bab4703-706e-4f2e-80b3-c3611832cda8",
     "runtime": {
       "platform": "tpm2",
       "measurement": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "firmware_version": "software-only-dev-mode"
     },
     "policy": {
-      "bundle_hash": "sha256:eb87240ced9e589f93d4851f404f892690d2067039b90a4806a676e426bd674f",
+      "bundle_hash": "sha256:9650dec5dec7afbc8608f0bdb29b9266c1f05990be603255e806479a76e9e23e",
       "enforcement_mode": "enforce",
       "version": "credit-risk-v4.2"
     },
     "data_class": "confidential",
     "tool_transcript": {
-      "hash": "sha256:f06d8771565a018e3f301cbe59e312cd9684eb2b3c84a7aa2d4a85f45075a6a3",
-      "call_count": 3
+      "hash": "sha256:bf92310550233e5363441d0cc3b4158480e86e1bee4b958123bb39e7c63be262",
+      "call_count": 4
     },
     "cnf": {
       "jwk": {
         "kty": "OKP",
         "crv": "Ed25519",
-        "x": "uYElaypX9Nuhfdf-TXDGOMof81zP8HKJX2z6iWmAPKU",
-        "kid": "cmcp-b981256b"
+        "x": "ZlmbQ6r1FqVml6LsKDifDR4grPSBhhRYZMqc8o0DdAc",
+        "kid": "cmcp-66599b43"
       }
     }
   },
   "gateway": {
-    "session_id": "27b1aaa2-6972-4224-951e-80cb9c89003a",
+    "session_id": "7bab4703-706e-4f2e-80b3-c3611832cda8",
     "gateway_version": "unknown",
-    "sequence_number": 1,
+    "sequence_number": 3,
+    "prev_claim_hash": "sha256:64a2493a624c547e12a5395a3bb1d23c8b42e077277bb88732ab5c7209da7e56",
     "audit_chain": {
-      "root": "e09e8744127cd61f36bed71052928f793d9be22f4f3e3b498413816e9f8cffc2",
-      "tip": "f06d8771565a018e3f301cbe59e312cd9684eb2b3c84a7aa2d4a85f45075a6a3",
-      "length": 5
+      "root": "17e9e977e3a1307f2a738ef1dedc3a879be3065ef9111b06b3e0644517f59457",
+      "tip": "bf92310550233e5363441d0cc3b4158480e86e1bee4b958123bb39e7c63be262",
+      "length": 6
     },
     "call_summary": {
-      "tool_calls_total": 3,
+      "tool_calls_total": 4,
       "tool_calls_allowed": 3,
-      "tool_calls_denied": 0,
+      "tool_calls_denied": 1,
       "tool_calls_faulted": 0,
       "tools_invoked": [
         "finance.credit_score_lookup",
@@ -58,9 +59,9 @@
           {
             "from_domain": "pii",
             "to_domain": "internal",
-            "call_id": "e9608498-ac0b-4c19-ba67-4d9519c72dde",
+            "call_id": "1fb8e8c8-d709-4fda-914b-81bbd9a872db",
             "tool_name": "finance.risk_report_writer",
-            "sequence_number": 2
+            "sequence_number": 3
           }
         ],
         "edges_represent": "Edges represent temporal adjacency (call order), not data provenance. A -> B means B was called immediately after A within this session."
@@ -70,12 +71,12 @@
       "hash": "sha256:02640e5bd370cd9e2d383f07dcab8d2d3c5e9e0155ee14c56556d6e7645d86ca",
       "drift_detected": false
     },
-    "attestation_generated_at": "2026-06-11T00:42:59.157791+00:00",
+    "attestation_generated_at": "2026-06-11T16:01:05.969369+00:00",
     "attestation_validity_seconds": 86400,
     "attestation_stale": false,
     "catalog_exceptions": [],
     "call_log_summary": {
-      "total_calls": 3,
+      "total_calls": 4,
       "tools_called": [
         "finance.document_reader",
         "finance.credit_score_lookup",
@@ -84,5 +85,5 @@
       "suspicious_sequences_detected": 0
     }
   },
-  "signature": "wBYpJ89EcFwtJsS4kp0wyVZfGIKZMcazJB4aMQ36mIuhAKtsO04v9KIGlCIk5k818u1PyDqP1gI6_aNDTxgkDQ"
+  "signature": "Eb4r3WoFBeJ86Zz2DNQPnCCLG11BegMgod-Kjyf6J9V3uKElF5ZiY-SJ5MQwj24EboeXFsU1lKf2Z29ui6FbBA"
 }

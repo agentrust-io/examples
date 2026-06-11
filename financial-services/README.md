@@ -124,7 +124,20 @@ python financial-services/agent/credit_risk_agent.py --amount-eur 750000
 
 ## The Cedar policy
 
-`policy/allow.cedar` — the escalation rule:
+`policy/allow.cedar` has no catch-all permit: each tool is explicitly permitted only for the `credit-risk-analyst` workflow (declared by the agent via `_cmcp.workflow_id`). Wrong workflow, missing workflow, or an unlisted action is denied by Cedar's default-deny:
+
+```cedar
+permit (
+  principal,
+  action == Action::"Finance.documentReader",
+  resource
+) when {
+  context has workflow_id &&
+  context.workflow_id == "credit-risk-analyst"
+};
+```
+
+On top of the workflow-scoped permits, the escalation rule:
 
 ```cedar
 @id("large-exposure-hitl")

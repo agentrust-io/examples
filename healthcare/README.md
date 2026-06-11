@@ -120,7 +120,20 @@ python healthcare/agent/clinical_decision_agent.py --trigger-hitl
 
 ## The Cedar policy
 
-`policy/allow.cedar` — two enforcement rules over a base permit. Annotations on a `forbid` are returned to the caller as structured advice when that rule causes a deny:
+`policy/allow.cedar` has no catch-all permit: each EHR tool is explicitly permitted only for the `clinical-decision-support` workflow (declared by the agent via `_cmcp.workflow_id`), and anything else — wrong workflow, missing workflow, unlisted action — is denied by Cedar's default-deny:
+
+```cedar
+permit (
+  principal,
+  action == Action::"Ehr.patientRecordLookup",
+  resource
+) when {
+  context has workflow_id &&
+  context.workflow_id == "clinical-decision-support"
+};
+```
+
+On top of the workflow-scoped permits sit two forbid rules. Annotations on a `forbid` are returned to the caller as structured advice when that rule causes a deny:
 
 ```cedar
 @id("hitl-high-risk")

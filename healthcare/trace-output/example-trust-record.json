@@ -2,39 +2,40 @@
   "cmcp_version": "1.0",
   "trace": {
     "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
-    "iat": 1781138573,
-    "subject": "spiffe://cmcp.gateway/session/ec7cb161-d4a6-457d-b7e9-ff4e0f9a64f7",
+    "iat": 1781193632,
+    "subject": "spiffe://cmcp.gateway/session/f2574e45-58b2-480f-919d-50aa65d07d31",
     "runtime": {
       "platform": "tpm2",
       "measurement": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "firmware_version": "software-only-dev-mode"
     },
     "policy": {
-      "bundle_hash": "sha256:746a35668e06c8b6a6a84aa0a06b603c26b286c3e9ec65b2562e1555077be936",
+      "bundle_hash": "sha256:bab3158a32ccadfecfd69d5edcc4078fcd1f2a0814c4f33069e352754ed69d9c",
       "enforcement_mode": "enforce",
       "version": "clinical-hipaa-v2.1"
     },
     "data_class": "confidential",
     "tool_transcript": {
-      "hash": "sha256:6439db6d0d0b4aaab9fb6fbe81bd26ed75c42aeb4198cc980ce5892725fb27c0",
+      "hash": "sha256:237bef498e84cd658ca00a7673bb114192a110940ed821b44ae4f8c81cf247f5",
       "call_count": 3
     },
     "cnf": {
       "jwk": {
         "kty": "OKP",
         "crv": "Ed25519",
-        "x": "i8Ia9guwYclt5cUUMRPcB6_EXiXOMN3iv8A0l8-CPQE",
-        "kid": "cmcp-8bc21af6"
+        "x": "g2zyVqHtTV9CtQBkS4PS971CMd1ilK0CtihOpuy9v14",
+        "kid": "cmcp-836cf256"
       }
     }
   },
   "gateway": {
-    "session_id": "ec7cb161-d4a6-457d-b7e9-ff4e0f9a64f7",
+    "session_id": "f2574e45-58b2-480f-919d-50aa65d07d31",
     "gateway_version": "unknown",
-    "sequence_number": 1,
+    "sequence_number": 3,
+    "prev_claim_hash": "sha256:dc612793436ff47741f94d67fa3aebf3d126741990cf48a4a29ec7baf63db9f9",
     "audit_chain": {
-      "root": "b6e5d7adff480101d3a466d6ab051509be22cf377c96447c43b22ca9bf27861b",
-      "tip": "6439db6d0d0b4aaab9fb6fbe81bd26ed75c42aeb4198cc980ce5892725fb27c0",
+      "root": "43656adea27dbd3cd2adefbd0364a70172938185cf6bb61397d21c6bcf4b1761",
+      "tip": "237bef498e84cd658ca00a7673bb114192a110940ed821b44ae4f8c81cf247f5",
       "length": 5
     },
     "call_summary": {
@@ -60,7 +61,7 @@
       "hash": "sha256:0c8009e105049f68d0f7054e254192e43eec7d567cd1fa45542450d268369647",
       "drift_detected": false
     },
-    "attestation_generated_at": "2026-06-11T00:42:42.456843+00:00",
+    "attestation_generated_at": "2026-06-11T16:00:17.584902+00:00",
     "attestation_validity_seconds": 86400,
     "attestation_stale": false,
     "catalog_exceptions": [],
@@ -74,5 +75,5 @@
       "suspicious_sequences_detected": 0
     }
   },
-  "signature": "2fHMRi8zIDMqT292wfhJ7RCPu56L5VgdwRw5bJebJ0znqjUYDUR8ctuFkOimwjgJH9ACJ_k-gS7w25Ha7Dr_AQ"
+  "signature": "49A-mPB9eY6y5396rtf3-2jn8IsCfvhf5OoRWlBLU9m94MUvK9UYZ6n76dDmqt2F9Bo4xYMe_t7ypuLfgqHhDQ"
 }

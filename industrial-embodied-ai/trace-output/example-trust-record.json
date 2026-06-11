@@ -1,0 +1,76 @@
+{
+  "cmcp_version": "1.0",
+  "trace": {
+    "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
+    "iat": 1781217660,
+    "subject": "spiffe://cmcp.gateway/session/fdbdd187-b276-4c71-8e08-50f839d13bd1",
+    "runtime": {
+      "platform": "software-only",
+      "measurement": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "firmware_version": "software-only-dev-mode"
+    },
+    "policy": {
+      "bundle_hash": "sha256:c8358148d201749ebd05651ea03cf92fb3ff8cc9cf05816483c394ebc3e1cac9",
+      "enforcement_mode": "enforce",
+      "version": "0.1.0"
+    },
+    "data_class": "confidential",
+    "tool_transcript": {
+      "hash": "sha256:278f15cce18a1fcb6a22c121facdab23060c700f7cff55ea622ecc8701c9ed7c",
+      "call_count": 5
+    },
+    "cnf": {
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "ebBLjGSAJYOTs9npzclQLGqGwZw_2fnG5YZ-Sbc0l54",
+        "kid": "cmcp-79b04b8c"
+      }
+    }
+  },
+  "gateway": {
+    "session_id": "fdbdd187-b276-4c71-8e08-50f839d13bd1",
+    "gateway_version": "0.1.0",
+    "sequence_number": 1,
+    "audit_chain": {
+      "root": "fd9e4d49b299f3088024a69ed1fc1e3d288593c62186ab4e1d8cb152ef226d61",
+      "tip": "278f15cce18a1fcb6a22c121facdab23060c700f7cff55ea622ecc8701c9ed7c",
+      "length": 7
+    },
+    "call_summary": {
+      "tool_calls_total": 5,
+      "tool_calls_allowed": 4,
+      "tool_calls_denied": 1,
+      "tool_calls_faulted": 0,
+      "tools_invoked": [
+        "cell.read_safety_state",
+        "robot.request_motion"
+      ],
+      "session_max_sensitivity": "confidential",
+      "call_graph_summary": {
+        "compliance_domains_touched": [
+          "internal"
+        ],
+        "cross_boundary_events": [],
+        "edges_represent": "Edges represent temporal adjacency (call order), not data provenance. A -> B means B was called immediately after A within this session."
+      }
+    },
+    "catalog": {
+      "hash": "sha256:792c86ff8152fa9713d52584c084611eb4929fa5ebf3ec8271dd21f0e0aa7eeb",
+      "drift_detected": false
+    },
+    "attestation_generated_at": "2026-06-11T22:40:55.264023+00:00",
+    "attestation_validity_seconds": 86400,
+    "attestation_stale": false,
+    "catalog_exceptions": [],
+    "call_log_summary": {
+      "total_calls": 5,
+      "tools_called": [
+        "cell.read_safety_state",
+        "robot.request_motion"
+      ],
+      "suspicious_sequences_detected": 0
+    }
+  },
+  "signature": "i3w2GxrsrGR9pHwO-VLeopxG9WTQTCVpy212-alhZB7bI8jxcH9mpW-AcKaKAu_TQTuGr-50IJo4gGitIKG6Dw"
+}

@@ -12,6 +12,7 @@ End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working 
 |---|---|---|---|
 | `financial-services/` | Payment agent with Cedar policy: blocks PII in tool call parameters | SEV-SNP / TDX | EU AI Act Art. 9/12, DORA Art. 9 |
 | `healthcare/` | Clinical decision agent with HITL approvals and EU AI Act Art. 14 compliance records | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
+| `industrial-embodied-ai/` | Material-movement agent with cMCP authorization and an independent safety-controller boundary | TEE / software-only development mode | OT security and industrial robot safety references |
 | `multi-tenant-saas/` | SaaS platform with per-tenant policy isolation | TDX | Customer contract SLA |
 | `startup-tpm/` | 15-minute quickstart on any cloud VM with Trusted Launch | TPM 2.0 | Development / staging |
 

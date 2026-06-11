@@ -180,7 +180,51 @@ The response is the signed `RuntimeClaim` (see `trace-output/example-trust-recor
 You can also export the hash-chained audit log for a closed session:
 
 ```bash
-curl "http://localhost:8443/audit/export?session_id=<session_id>" | python3 -m json.tool
+curl "http://localhost:8443/audit/export?session_id=<session_id>" > bundle.json
+```
+
+---
+
+## Step 7 — Verify the record (and try to tamper with it)
+
+Save the claim from Step 6 to `claim.json`, then verify it:
+
+```bash
+cmcp verify claim.json --audit-bundle bundle.json
+```
+
+```
+[cmcp verify] schema                   PASS
+[cmcp verify] signature                PASS
+[cmcp verify] attestation_freshness    PASS
+[cmcp verify] audit_chain              PASS
+[cmcp verify] audit_bundle             PASS  (3 entries)
+[cmcp verify] RESULT: PASS (verified)
+```
+
+Now change anything — a counter, a tool name, one character — and verify again:
+
+```bash
+python3 -c "
+import json
+c = json.load(open('claim.json'))
+c['gateway']['call_summary']['tool_calls_total'] += 1
+json.dump(c, open('claim.json', 'w'))
+"
+cmcp verify claim.json
+```
+
+```
+[cmcp verify] signature                FAIL
+[cmcp verify] RESULT: FAIL (partially_verified)
+```
+
+The signature covers the whole canonical claim, so no field can be altered after the fact. The same holds for the audit bundle: editing any entry breaks both its hash chain and the bundle signature. This is the tamper-evidence guarantee in one command.
+
+In production, pin the approved hashes so a substituted policy or catalog also fails:
+
+```bash
+cmcp verify claim.json --policy-hash sha256:<approved> --catalog-hash sha256:<approved>
 ```
 
 ---

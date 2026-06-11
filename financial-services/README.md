@@ -1,238 +1,97 @@
-﻿# financial-services: EU Credit Risk Agent Demo
+# financial-services: EU Credit Risk Agent Demo
 
-End-to-end demo of a credit risk agent processing client financial documents through a cMCP Runtime with Cedar policy enforcement and TRACE Trust Records for EU regulatory compliance (EU AI Act, MiFID II, DORA, GDPR).
-
-End-to-end example: AI agent compliance for European private banks using cMCP and TRACE attestation.
+End-to-end demo of a credit risk agent processing client financial documents through a cMCP Runtime with Cedar policy enforcement and signed TRACE Trust Records for EU regulatory compliance (EU AI Act, MiFID II, DORA, GDPR).
 
 ---
 
 ## What the demo shows
 
-This example demonstrates:
-
 **1. Cryptographic proof of which tools an AI agent called**
-The cMCP Runtime intercepts every MCP tool call and records it in a signed TRACE Trust Record. An auditor or regulator can verify after the fact exactly which tools ran, in what order, with what data classifications — without trusting the agent process itself.
+The cMCP Runtime intercepts every MCP tool call, records it in a hash-chained audit log persisted to SQLite, and seals the session into a signed `RuntimeClaim` (the TRACE Trust Record). An auditor can verify after the fact exactly which tools ran, in what order, and what was denied — without trusting the agent process.
 
 **2. Cedar policy as machine-readable compliance**
-The three Cedar rules in `policy/allow.cedar` encode the bank's compliance requirements directly: which workflows may call which tools, when a large credit recommendation must go to a human reviewer, and how to prevent accidental data-class downgrade. Policy-as-code means the same rules that block a call are the rules that go into the audit file.
+The rules in `policy/allow.cedar` encode the bank's requirements directly. The MiFID II escalation rule blocks any risk report above EUR 500,000 and returns the policy's `@annotation` metadata as structured advice, so the calling system knows *why* and *who must review*.
 
 **3. EU AI Act Article 12 transparency obligation**
-Article 12 requires high-risk AI systems to automatically log sufficient information to enable post-hoc monitoring. The TRACE Trust Record is that log. It covers the model identity, the policy version that was enforced, and the full tool call transcript with per-call data-class labels.
+Article 12 requires high-risk AI systems to log sufficient information for post-hoc monitoring. The TRACE record covers the policy version enforced, the audit chain root/tip, per-call decisions, and the runtime attestation — signed by the runtime's key.
 
-**4. MiFID II suitability and audit trail**
-MiFID II Article 25 requires that investment firms document the basis for any investment recommendation. For an AI-assisted credit decision, the TRACE record provides the tool-call audit trail showing that credit bureau data was consulted and a human reviewer was required for exposures above €500k.
-
-**5. DORA Article 9 ICT risk — immutable logs**
-The runtime runs in an attested environment (TEE or TPM). The TRACE record is signed by the runtime's attestation key. If a log is tampered with, the signature verification fails.
-
-**6. GDPR data minimisation in tool definitions**
-The catalog schema enforces `sensitivity_level` and `compliance_domain` on every tool. The Cedar policy forbids confidential-data tools if the session sensitivity has been downgraded to `public`. This is the machine-enforceable equivalent of the GDPR data-minimisation principle.
+**4. Attestation-gated data access (DORA Art. 9)**
+A Cedar rule forbids confidential (`mnpi`) tools when no attestation evidence is present: confidential financial data only flows through attested runtimes.
 
 ---
 
 ## Architecture
 
 ```
-  ┌─────────────────────────────────────────────────────────────────┐
-  │                   Credit Risk Agent (LLM)                       │
-  │   credit_risk_agent.py — JSON-RPC 2.0 over HTTP                 │
-  └──────────────────────────┬──────────────────────────────────────┘
-                             │  tools/call (MCP)
-                             ▼
-  ┌─────────────────────────────────────────────────────────────────┐
-  │              cMCP Runtime  :8443                                │
-  │                                                                  │
-  │  ┌──────────────┐  ┌─────────────────┐  ┌───────────────────┐  │
-  │  │ Cedar engine │  │ Catalog checker │  │ TRACE recorder    │  │
-  │  │ allow.cedar  │  │ catalog.json    │  │ /trace endpoint   │  │
-  │  └──────────────┘  └─────────────────┘  └───────────────────┘  │
-  └──────────────────────────┬──────────────────────────────────────┘
-                             │  proxied tool call
-                             ▼
-  ┌─────────────────────────────────────────────────────────────────┐
-  │         EU Credit Risk MCP Server  :8080                        │
-  │   finance.document_reader                                        │
-  │   finance.credit_score_lookup                                    │
-  │   finance.risk_report_writer                                     │
-  └─────────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------------+
+  |                   Credit Risk Agent (LLM)                        |
+  |   agent/credit_risk_agent.py -- JSON-RPC 2.0 over HTTP           |
+  +-------------------------------+----------------------------------+
+                                  |  tools/call (MCP)
+                                  v
+  +------------------------------------------------------------------+
+  |                   cMCP Runtime  :8443                            |
+  |                                                                  |
+  |  +---------------+  +------------------+  +------------------+  |
+  |  | Cedar engine  |  | Catalog checker  |  | Audit chain +    |  |
+  |  | allow.cedar   |  | catalog.json     |  | TRACE signer     |  |
+  |  +---------------+  +------------------+  +------------------+  |
+  +-------------------------------+----------------------------------+
+                                  |  proxied tool call
+                                  v
+  +------------------------------------------------------------------+
+  |          Mock EU Credit Risk MCP Server  :8080                   |
+  |   server/mock_mcp_server.py                                       |
+  |   finance.document_reader                                         |
+  |   finance.credit_score_lookup                                     |
+  |   finance.risk_report_writer                                      |
+  +------------------------------------------------------------------+
 ```
 
 ---
 
-## Prerequisites
+## The catalog
 
-| Requirement | Version | Notes |
+`catalog.json` registers three tools with approved definitions, classifications, and definition hashes (`sha256` of the canonical JSON of `approved_definition` — the runtime rejects drifted definitions).
+
+| Tool | compliance_domain | sensitivity_level |
 |---|---|---|
-| Python | 3.11+ | `python3 --version` |
-| pip | any recent | `pip --version` |
-| httpx | 0.27+ | installed by `pip install cmcp-runtime` |
-| cmcp-runtime | latest | `pip install cmcp-runtime` |
-| agent-manifest | latest | `pip install agent-manifest` |
-| curl | any | For verification steps |
-
-No hardware TEE or TPM is required for this demo. The runtime runs in `CMCP_DEV_MODE=1`.
+| `finance.document_reader` | mnpi | confidential |
+| `finance.credit_score_lookup` | pii | confidential |
+| `finance.risk_report_writer` | internal | confidential |
 
 ---
 
-## Step 1 — Clone the examples repo
+## Run it
 
 ```bash
 git clone https://github.com/agentrust-io/examples.git
 cd examples
+pip install cmcp-runtime httpx
 ```
 
----
-
-## Step 2 — Install dependencies
+**Terminal 1 — mock MCP server:**
 
 ```bash
-pip install cmcp-runtime agent-manifest httpx
+cd financial-services
+python server/mock_mcp_server.py
 ```
 
-Verify:
+**Terminal 2 — runtime** (run from inside `financial-services/` — config paths resolve relative to the working directory):
 
 ```bash
-cmcp --version
-cmcp-verify --version
+cd financial-services
+CMCP_DEV_MODE=1 cmcp start --config cmcp-config.yaml
 ```
 
----
-
-## Step 3 — Review the files
-
-```
-financial-services/
-  cmcp-config.yaml              Runtime configuration
-  catalog.json                  Three-tool catalog
-  policy/
-    manifest.json               Policy bundle metadata
-    allow.cedar                 Four Cedar rules
-    schema.cedarschema          Cedar schema
-  agent/
-    credit_risk_agent.py        Demo agent (run this)
-  trace-output/
-    example-trust-record.json   Reference TRACE output
-```
-
----
-
-## Step 4 — Understand the Cedar policy
-
-`policy/allow.cedar` contains four rules:
-
-**Rule 1 — Workflow permit**
-
-```cedar
-permit (
-  principal,
-  action == Action::"tool_call",
-  resource
-) when {
-  context.workflow_id == "credit-risk-analyst"
-};
-```
-
-Only the `credit-risk-analyst` workflow may call any of the three tools. Any other workflow ID results in a deny.
-
-**Rule 2 — Large-exposure escalation (advisory)**
-
-```cedar
-forbid (
-  principal,
-  action == Action::"tool_call",
-  resource == Tool::"finance.risk_report_writer"
-) when {
-  context.amount_eur > 500000
-} advice {
-  "reason": "human-review-required",
-  "escalation_threshold_eur": 500000
-};
-```
-
-Any call to `finance.risk_report_writer` where `amount_eur` exceeds €500,000 triggers an advisory deny. In `enforcement_mode: enforcing` this blocks the call and returns a 403 with the advice payload. The agent script uses `amount_eur=250000` so this rule does not fire in the happy path — see "Extending this example" for how to trigger it.
-
-**Rule 3 — Data-class downgrade prevention**
-
-```cedar
-forbid (
-  principal,
-  action == Action::"tool_call",
-  resource
-) when {
-  context.session_max_sensitivity == "public" &&
-  resource.compliance_domain == "confidential"
-};
-```
-
-Prevents a session that has been flagged `public` from calling tools that handle confidential data. This enforces the GDPR data-minimisation principle at the runtime layer.
-
-**Rule 4 — Catch-all permit**
-
-```cedar
-permit (principal, action, resource);
-```
-
-Any call not matched by a forbid is allowed. Removes the need to enumerate every possible action type.
-
----
-
-## Step 5 — Review the catalog
-
-`catalog.json` registers three tools with their approved definitions, data classifications, and definition hashes. The definition hash is `sha256(json.dumps(approved_definition, sort_keys=True, separators=(',',':')))`. The runtime rejects any tool call where the server returns a definition that does not match the hash — preventing prompt-injection via MCP tool description tampering.
-
-| Tool | compliance_domain | sensitivity_level | definition_hash (first 16 chars) |
-|---|---|---|---|
-| `finance.document_reader` | hipaa_phi | confidential | `sha256:75312282...` |
-| `finance.credit_score_lookup` | pii | confidential | `sha256:0db5f137...` |
-| `finance.risk_report_writer` | internal | internal | `sha256:b98f4fff...` |
-
----
-
-## Step 6 — Start the runtime
+**Terminal 3 — happy path (EUR 250,000, below the threshold):**
 
 ```bash
-CMCP_DEV_MODE=1 cmcp start --config financial-services/cmcp-config.yaml
-```
-
-Run from the root of the examples repo so relative paths in the config resolve correctly.
-
-Expected startup output:
-
-```
-[cmcp] policy bundle loaded: credit-risk-v4.2
-[cmcp] catalog loaded: 3 tools
-[cmcp]   finance.document_reader       (confidential)
-[cmcp]   finance.credit_score_lookup   (confidential)
-[cmcp]   finance.risk_report_writer    (internal)
-[cmcp] attestation: dev-mode (CMCP_DEV_MODE=1)
-[cmcp] enforcement: enforcing
-[cmcp] listening on 0.0.0.0:8443
-```
-
-Leave this terminal open.
-
----
-
-## Step 7 — Run the mock credit risk agent
-
-In a second terminal:
-
-```bash
+cd examples
 python financial-services/agent/credit_risk_agent.py
 ```
 
-The agent calls the three tools in sequence:
-
-1. `finance.document_reader` — reads balance sheet `BS-2024-Q4` for client `EUR-2024-00847`
-2. `finance.credit_score_lookup` — retrieves Equifax score for the client
-3. `finance.risk_report_writer` — writes a risk score of 72.3 with recommendation `approve` and `amount_eur=250000`
-
-Expected output:
-
 ```
-Connecting to cMCP gateway at http://localhost:8443
-Client: EUR-2024-00847  |  Document: BS-2024-Q4  |  Bureau: equifax
-
 [1/3] Calling finance.document_reader ...
       -> decision: allow
 [2/3] Calling finance.credit_score_lookup ...
@@ -240,249 +99,89 @@ Client: EUR-2024-00847  |  Document: BS-2024-Q4  |  Bureau: equifax
 [3/3] Calling finance.risk_report_writer ...
       -> decision: allow
 
-Fetching TRACE Trust Record from gateway ...
-
-=== TRACE Trust Record ===
-{
-  "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
-  ...
-}
-
-All tool calls completed. TRACE Trust Record generated.
+Closing session <id> and fetching the signed TRACE Trust Record ...
 ```
 
----
-
-## Step 8 — Inspect the TRACE Trust Record
+**Escalation path (EUR 750,000):**
 
 ```bash
-curl -s http://localhost:8443/trace | python3 -m json.tool
+python financial-services/agent/credit_risk_agent.py --amount-eur 750000
 ```
 
-See the "Expected output" section below for the full annotated TRACE record.
-
----
-
-## Step 9 — Verify with cmcp-verify
-
-```bash
-curl -s http://localhost:8443/trace > trace.json
-cmcp-verify trace.json
 ```
+[3/3] Calling finance.risk_report_writer ...
+      -> decision: deny (POLICY_DENY)
+         advice from policy:
+           id: large-exposure-hitl
+           reason: human-review-required
+           regulation: mifid-ii-art-25
+           escalation_threshold_eur: 500000
 
-Expected output:
-
-```
-[cmcp-verify] signature: valid
-[cmcp-verify] attestation: dev-mode (not hardware-backed)
-[cmcp-verify] policy version: credit-risk-v4.2
-[cmcp-verify] tool transcript: 3 calls, all allowed
-[cmcp-verify] data_class: confidential (session maximum)
-[cmcp-verify] RESULT: PASS (dev-mode)
-```
-
-For a production deployment with hardware TEE, the attestation line reads:
-```
-[cmcp-verify] attestation: SEV-SNP verified (PCR0: aa11bb22...)
+  The risk report was NOT written to the core banking system.
 ```
 
 ---
 
-## Expected output — Full TRACE Trust Record
+## The Cedar policy
 
-```json
-{
-  "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
-  "iat": 1750000000,
-  "subject": "spiffe://bank.eu/agents/credit-risk-analyst/run-abc123",
-  "model": {
-    "provider": "bank-internal",
-    "name": "credit-risk-llm-eu",
-    "version": "2.1.0",
-    "digest": {
-      "sha-256": "a3f9b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
-    }
-  },
-  "runtime": {
-    "platform": "software-only",
-    "tee_type": "dev-mode",
-    "measurement": "DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION",
-    "region": "westeurope"
-  },
-  "policy": {
-    "framework": "cedar",
-    "bundle_hash": "sha256:b8c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2",
-    "enforcement_mode": "enforce",
-    "version": "credit-risk-v4.2"
-  },
-  "data_class": "confidential",
-  "tool_transcript": [
-    {
-      "tool": "finance.document_reader",
-      "data_class": "confidential",
-      "decision": "allow"
-    },
-    {
-      "tool": "finance.credit_score_lookup",
-      "data_class": "confidential",
-      "decision": "allow"
-    },
-    {
-      "tool": "finance.risk_report_writer",
-      "data_class": "internal",
-      "decision": "allow"
-    }
-  ],
-  "cnf": {
-    "kid": "cmcp-a1b2c3d4"
-  }
-}
+`policy/allow.cedar` — the escalation rule:
+
+```cedar
+@id("large-exposure-hitl")
+@reason("human-review-required")
+@regulation("mifid-ii-art-25")
+@escalation_threshold_eur("500000")
+forbid (
+  principal,
+  action == Action::"Finance.riskReportWriter",
+  resource
+) when {
+  context.arguments has amount_eur &&
+  context.arguments.amount_eur > 500000
+};
 ```
 
-### Field annotations
-
-| Field | Value in demo | Meaning |
-|---|---|---|
-| `eat_profile` | `tag:agentrust.io,2026:trace-v0.1` | TRACE schema version |
-| `iat` | Unix timestamp | Time the record was sealed |
-| `subject` | `spiffe://bank.eu/...` | SPIFFE ID of the agent run |
-| `model.provider` | `bank-internal` | Model hosting entity |
-| `model.digest.sha-256` | hex string | Immutable model fingerprint |
-| `runtime.tee_type` | `dev-mode` | `sev-snp` or `tdx` in production |
-| `runtime.measurement` | `DEVELOPMENT_ONLY_...` | PCR0/RTMR measurement in production |
-| `policy.bundle_hash` | sha256 hex | Hash of the Cedar bundle used |
-| `policy.version` | `credit-risk-v4.2` | From `policy/manifest.json` |
-| `data_class` | `confidential` | Highest sensitivity across all calls |
-| `tool_transcript` | array | One entry per tool call, in order |
-| `cnf.kid` | `cmcp-a1b2c3d4` | Key ID of the runtime signing key |
+Action names follow the cMCP convention: `finance.risk_report_writer` becomes `Action::"Finance.riskReportWriter"` (PascalCase per underscore segment). Tool arguments are available under `context.arguments`; the `@annotation` values are returned in the deny response's `error.data.advice`.
 
 ---
 
-## Regulatory field mapping
+## The TRACE Trust Record
+
+See `trace-output/example-trust-record.json` — captured from a real run. Structure: `{"cmcp_version", "trace": {...}, "gateway": {...}, "signature"}`.
 
 | TRACE field | EU AI Act | MiFID II | DORA | GDPR |
 |---|---|---|---|---|
-| `model.digest` | Art. 12 — logging of AI system identity | Art. 25 — documentation of system used | Art. 9 — ICT asset inventory | Art. 5(1)(f) — integrity |
-| `policy.bundle_hash` | Art. 9 — risk management system version | Art. 25 — controls documentation | Art. 9 — change management | — |
-| `policy.version` | Art. 12 — log versioning | Art. 25 — audit trail | Art. 11 — ICT change log | — |
-| `runtime.tee_type` + `runtime.measurement` | Art. 12 — tamper-evident logging | — | Art. 9 — security of ICT systems | Art. 32 — security of processing |
-| `tool_transcript` | Art. 12 — sufficient data for post-hoc review | Art. 25 — basis of recommendation | Art. 17 — incident management | Art. 5(1)(c) — data minimisation |
-| `data_class` (per call) | Art. 10 — data governance | — | — | Art. 5(1)(b) — purpose limitation |
-| `subject` (SPIFFE) | Art. 12 — traceability to specific run | Art. 25 — audit trail | Art. 17 — incident traceability | Art. 5(1)(f) — accountability |
-| `cnf.kid` | Art. 12 — authentic log provenance | — | Art. 9 — key management | — |
+| `trace.policy.bundle_hash` | Art. 9 — risk mgmt system version | Art. 25 — controls documentation | Art. 9 — change management | — |
+| `trace.policy.version` | Art. 12 — log versioning | Art. 25 — audit trail | Art. 11 — ICT change log | — |
+| `trace.runtime` + `signature` | Art. 12 — tamper-evident logging | — | Art. 9 — security of ICT systems | Art. 32 — security of processing |
+| `gateway.call_summary` | Art. 12 — post-hoc review data | Art. 25 — basis of recommendation | Art. 17 — incident management | Art. 5(1)(c) — data minimisation |
+| `trace.data_class` | Art. 10 — data governance | — | — | Art. 5(1)(b) — purpose limitation |
+| `trace.subject` | Art. 12 — traceability to run | Art. 25 — audit trail | Art. 17 — incident traceability | Art. 5(1)(f) — accountability |
+
+Export the full audit chain for a closed session:
+
+```bash
+curl "http://localhost:8443/audit/export?session_id=<id>" | python3 -m json.tool
+```
 
 ---
 
 ## Extending this example
 
-### Swap in a real MCP server
-
-Replace the `server.url` values in `catalog.json` with your actual MCP server endpoint:
-
-```json
-"server": {
-  "display_name": "Production Credit Risk Server",
-  "url": "https://mcp.bank.eu/credit-risk",
-  "tls_fingerprint": "SHA256:<your-actual-fingerprint>",
-  "transport": "http-sse"
-}
-```
-
-Get the TLS fingerprint:
-
-```bash
-openssl s_client -connect mcp.bank.eu:443 < /dev/null 2>/dev/null \
-  | openssl x509 -fingerprint -sha256 -noout \
-  | sed 's/sha256 Fingerprint=//;s/://g'
-```
-
-### Trigger the €500k escalation rule
-
-Edit `credit_risk_agent.py` and change `AMOUNT_EUR = 250_000` to `AMOUNT_EUR = 750_000`. Re-run the agent. The runtime will return an advisory deny for the `finance.risk_report_writer` call:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "error": {
-    "code": -32003,
-    "message": "tool_call denied",
-    "data": {
-      "decision": "advisory_deny",
-      "reason": "human-review-required",
-      "escalation_threshold_eur": 500000
-    }
-  }
-}
-```
-
-### Switch to enforcing mode
-
-Change `enforcement_mode: enforcing` in `cmcp-config.yaml` (it is already set to `enforcing`). In dev mode the runtime enforces the policy but the attestation is not hardware-backed. Change `CMCP_DEV_MODE=1` to use a real TPM or TEE for production.
-
-### Add a new tool
-
-1. Define the tool in your MCP server.
-2. Add an entry to `catalog.json` with the correct `definition_hash`.
-3. Add a Cedar rule in `allow.cedar` if needed.
-4. Restart the runtime with `cmcp start --config financial-services/cmcp-config.yaml --reload`.
-
-The definition hash is:
-
-```python
-import hashlib, json
-
-def definition_hash(approved_definition: dict) -> str:
-    canonical = json.dumps(approved_definition, sort_keys=True, separators=(',', ':'))
-    return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
-```
-
-### Enable hardware attestation (Azure Trusted Launch)
-
-1. Provision an Azure VM with Trusted Launch enabled (Trusted Launch is the default for most VM sizes as of 2025).
-2. Install the vTPM extension if not already present.
-3. Remove `CMCP_DEV_MODE=1` from the startup command.
-4. The runtime will automatically use the vTPM. The `runtime.tee_type` field in the TRACE record will be `tpm2` and `runtime.measurement` will contain the PCR0 value.
-
-### Connect an agent manifest
-
-If you publish an agent manifest with `agent-manifest`, the runtime can cross-check the manifest's `allowed_tools` list against the catalog:
-
-```bash
-agent-manifest validate --manifest agent-manifest.json --catalog financial-services/catalog.json
-```
+- **Real MCP server:** point `server.url` in `catalog.json` at your endpoint; get the TLS fingerprint with `openssl s_client -connect host:443 | openssl x509 -fingerprint -sha256 -noout`.
+- **Change the threshold:** edit the `when` clause and the `@escalation_threshold_eur` annotation together.
+- **Hardware attestation:** drop `CMCP_DEV_MODE=1` on a VM with TPM 2.0 / SEV-SNP / TDX.
+- **Production hardening:** set `CMCP_BEARER_TOKEN`, `CMCP_POLICY_HASH`, `CMCP_CATALOG_HASH`.
 
 ---
 
 ## Troubleshooting
 
-**Runtime cannot find the policy bundle**
+**Tool call returns 502 `UPSTREAM_UNAVAILABLE`** — the mock MCP server is not running on port 8080 (Terminal 1).
 
-Make sure you run `cmcp start` from the root of the examples repo, or use an absolute path:
+**Runtime exits at startup** — config paths resolve relative to the working directory; run `cmcp start` from inside `financial-services/`.
 
-```bash
-cmcp start --config /path/to/examples/financial-services/cmcp-config.yaml
-```
-
-**`httpx.ConnectError` in the agent script**
-
-The runtime is not running, or is running on a different port. Check:
-
-```bash
-curl http://localhost:8443/health
-```
-
-**`definition_hash mismatch` error**
-
-The catalog hash was computed from a different tool definition than what the server returned. Recompute using the Python snippet in "Extending this example" above.
-
-**Cedar policy parse error on startup**
-
-Cedar is whitespace-sensitive in some versions. Check that there are no stray Unicode characters (e.g., smart quotes) in `allow.cedar`. Use a plain ASCII editor.
-
-**TRACE record shows `data_class: internal` instead of `confidential`**
-
-The session-level `data_class` is the maximum across all tool calls. If only `finance.risk_report_writer` (internal) was called, the session data class is `internal`. Call `finance.document_reader` or `finance.credit_score_lookup` first to raise it to `confidential`.
+**Cedar policy parse error** — check for stray Unicode (smart quotes) in `allow.cedar`; annotations must be `@key("value")` with double quotes.
 
 ---
 

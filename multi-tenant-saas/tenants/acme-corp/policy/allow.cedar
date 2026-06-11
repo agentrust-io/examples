@@ -1,35 +1,24 @@
 // Cedar policy bundle for Acme Corp tenant
 // version: acme-corp-v1.0
-// Standard SaaS tenant — all tools permitted for the analytics workflow.
-// User data export requires a GDPR justification (advisory only — logged
-// but not blocked, so the business can operate while the DPO reviews).
+//
+// Acme Corp runs the runtime in ADVISORY enforcement mode (see
+// cmcp-config-acme-corp.yaml): a matched forbid is logged in the audit
+// chain and surfaced as would_have_denied + advice in the response
+// metadata, but the call is not blocked.
 
-// Rule 1: Permit the analytics workflow to call any platform tool.
-permit (
-  principal,
-  action == Action::"tool_call",
-  resource
-) when {
-  context.workflow_id == "analytics-workflow"
-};
+// Rule 1: permit all catalog tools.
+permit (principal, action, resource);
 
-// Rule 2: Advisory forbid on user data export without a GDPR justification.
-// Logged in the TRACE record for DPO review; does not block the call.
+// Rule 2: user data export should carry a GDPR Article 6 justification.
+// Advisory: flagged for DPO review, not blocked.
+@id("gdpr-justification-missing")
+@reason("gdpr-justification-missing")
+@regulation("gdpr-art-6")
 forbid (
   principal,
-  action == Action::"tool_call",
-  resource == Tool::"saas.user_data_export"
-) when {
-  !context.has("gdpr_justification") || context.gdpr_justification == ""
-} advice {
-  "reason": "gdpr-justification-missing",
-  "regulation": "gdpr-art-6",
-  "action": "advisory-log-only"
-};
-
-// Rule 3: Catch-all permit.
-permit (
-  principal,
-  action,
+  action == Action::"Saas.userDataExport",
   resource
-);
+) when {
+  !(context.arguments has gdpr_justification) ||
+  context.arguments.gdpr_justification == ""
+};

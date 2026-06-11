@@ -1,4 +1,4 @@
-﻿# startup-tpm: 15-Minute cMCP Quickstart
+# startup-tpm: 15-Minute cMCP Quickstart
 
 Get a cMCP Runtime running with TPM-backed TRACE Trust Records in under 15 minutes. Works on any cloud VM with TPM 2.0 (Azure Trusted Launch, AWS Nitro, GCP Shielded VM) or with `CMCP_DEV_MODE=1` for local development — no hardware required for testing.
 
@@ -6,10 +6,10 @@ Get a cMCP Runtime running with TPM-backed TRACE Trust Records in under 15 minut
 
 ## What you will have at the end
 
-- A cMCP Runtime running on port 8443
+- A cMCP Runtime running on port 8443, proxying calls to an upstream MCP server
 - A Cedar policy that permits all tool calls (replace before production)
-- A one-tool catalog (`test.echo`)
-- A TRACE Trust Record you can inspect and verify
+- A one-tool catalog (`test.echo`) and a mock MCP server that serves it
+- A signed TRACE Trust Record you can inspect
 
 Estimated time: 15 minutes on a fresh VM, 5 minutes if Python is already installed.
 
@@ -21,10 +21,7 @@ Estimated time: 15 minutes on a fresh VM, 5 minutes if Python is already install
 |---|---|---|
 | Python | 3.11+ | `python3 --version` |
 | pip | any recent | `pip --version` |
-| curl | any | For the test tool call |
 | TPM 2.0 | optional | Required for hardware attestation; omit with `CMCP_DEV_MODE=1` |
-
-No MCP server is required — the runtime runs a built-in echo responder for the `test.echo` tool.
 
 ---
 
@@ -39,8 +36,6 @@ Verify:
 ```bash
 cmcp --version
 ```
-
-Expected output: `cmcp-runtime 0.x.y`
 
 ---
 
@@ -61,69 +56,87 @@ startup-tpm/
     manifest.json       policy bundle metadata
     allow.cedar         permit-all policy
     schema.cedarschema  Cedar schema (minimal)
+  server/
+    mock_mcp_server.py  mock upstream MCP server (stdlib only)
   agent/
     echo_agent.py       minimal agent script
 ```
 
 ---
 
-## Step 3 — Review the config
+## Step 3 — Start the mock MCP server
 
-`cmcp-config.yaml`:
+The runtime proxies tool calls to the upstream MCP server listed in `catalog.json` (`http://localhost:8080/mcp`). The quickstart ships a mock:
 
-```yaml
-policy_bundle_path: ./policy
-catalog_path: ./catalog.json
-listen_addr: 0.0.0.0:8443
-attestation:
-  provider: auto
-  enforcement_mode: advisory
+**Terminal 1:**
+
+```bash
+python server/mock_mcp_server.py
 ```
 
-`enforcement_mode: advisory` means the runtime logs policy violations but does not block calls. Change to `enforcing` before production.
-
-`provider: auto` selects the best available attestation source: TPM 2.0 if present, software-only otherwise.
+To protect a real MCP server instead, point `server.url` in `catalog.json` at it and recompute nothing — the catalog hash is only pinned in production mode.
 
 ---
 
 ## Step 4 — Start the runtime
 
-### With hardware TPM (Azure Trusted Launch, AWS Nitro, GCP Shielded VM)
+Run from inside `startup-tpm/` — the `./policy` and `./catalog.json` paths in the config resolve relative to the working directory.
+
+**Terminal 2, with hardware TPM (Azure Trusted Launch, AWS Nitro, GCP Shielded VM):**
 
 ```bash
-cmcp start --config startup-tpm/cmcp-config.yaml
+cmcp start --config cmcp-config.yaml
 ```
 
-The runtime will print the TPM attestation measurement on startup.
-
-### Without hardware TPM (local dev, CI)
+**Without hardware TPM (local dev, CI):**
 
 ```bash
-CMCP_DEV_MODE=1 cmcp start --config startup-tpm/cmcp-config.yaml
+CMCP_DEV_MODE=1 cmcp start --config cmcp-config.yaml
 ```
 
-`CMCP_DEV_MODE=1` sets `tee_type: dev-mode` in the TRACE record and marks the measurement `DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION`. The runtime is fully functional but the attestation is not hardware-backed.
+On Windows PowerShell:
 
-Expected startup output:
+```powershell
+$env:CMCP_DEV_MODE = "1"
+cmcp start --config cmcp-config.yaml
+```
+
+`CMCP_DEV_MODE=1` marks the attestation `software-only-dev-mode` in the TRACE record. The runtime is fully functional but the attestation is not hardware-backed.
+
+Expected startup output ends with:
 
 ```
-[cmcp] policy bundle loaded: quickstart-v1.0
-[cmcp] catalog loaded: 1 tool (test.echo)
-[cmcp] attestation: dev-mode (CMCP_DEV_MODE=1)
-[cmcp] listening on 0.0.0.0:8443
+cMCP Runtime starting: TEE: software-only, listen: 0.0.0.0:8443
+INFO:     Uvicorn running on http://0.0.0.0:8443
 ```
 
 ---
 
 ## Step 5 — Make a test tool call
 
-**Option A — agent script (recommended):**
+**Terminal 3, Option A — agent script (recommended):**
 
 ```bash
-python startup-tpm/agent/echo_agent.py
+python agent/echo_agent.py
 ```
 
-The script calls `test.echo`, prints the policy decision, and fetches the TRACE Trust Record in one shot.
+Expected output:
+
+```
+[1/1] Calling test.echo ...
+      -> decision: allow
+      -> echoed:   hello from cMCP
+
+Closing session <session-id> and fetching the signed TRACE Trust Record ...
+
+=== TRACE Trust Record (signed RuntimeClaim) ===
+{
+  "cmcp_version": "1.0",
+  "trace": { ... },
+  "gateway": { ... },
+  "signature": "..."
+}
+```
 
 **Option B — curl:**
 
@@ -133,7 +146,7 @@ curl -X POST http://localhost:8443/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test.echo","arguments":{"message":"hello"}}}'
 ```
 
-Expected response:
+The response carries the echoed text plus `_cmcp` enforcement metadata:
 
 ```json
 {
@@ -141,8 +154,13 @@ Expected response:
   "id": 1,
   "result": {
     "content": [{"type": "text", "text": "hello"}],
-    "cmcp_decision": "allow",
-    "cmcp_policy_version": "quickstart-v1.0"
+    "_cmcp": {
+      "call_id": "...",
+      "audit_entry_hash": "...",
+      "would_have_denied": false,
+      "latency_us": 12345,
+      "session_id": "..."
+    }
   }
 }
 ```
@@ -151,52 +169,18 @@ Expected response:
 
 ## Step 6 — Get the TRACE Trust Record
 
-```bash
-curl http://localhost:8443/trace | python3 -m json.tool
-```
-
-The TRACE record covers the entire session (all tool calls since the runtime started). Example output:
-
-```json
-{
-  "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
-  "iat": 1750000000,
-  "subject": "spiffe://localhost/agents/anonymous/run-...",
-  "runtime": {
-    "platform": "software-only",
-    "tee_type": "dev-mode",
-    "measurement": "DEVELOPMENT_ONLY_NOT_FOR_PRODUCTION"
-  },
-  "policy": {
-    "framework": "cedar",
-    "enforcement_mode": "advisory",
-    "version": "quickstart-v1.0"
-  },
-  "data_class": "internal",
-  "tool_transcript": [
-    {"tool": "test.echo", "data_class": "internal", "decision": "allow"}
-  ],
-  "cnf": {"kid": "cmcp-..."}
-}
-```
-
----
-
-## Step 7 — Verify the TRACE record (optional)
+TRACE Trust Records are sealed when a session closes. Close the session (use the `session_id` from `_cmcp`):
 
 ```bash
-curl -s http://localhost:8443/trace > trace.json
-cmcp-verify trace.json
+curl -X POST http://localhost:8443/sessions/<session_id>/close | python3 -m json.tool
 ```
 
-In dev mode the output will be:
+The response is the signed `RuntimeClaim` (see `trace-output/example-trust-record.json` for a real captured example). The runtime immediately starts a fresh session, so further tool calls keep working.
 
-```
-[cmcp-verify] signature: valid
-[cmcp-verify] attestation: dev-mode (not hardware-backed)
-[cmcp-verify] policy version: quickstart-v1.0
-[cmcp-verify] tool transcript: 1 call, all allowed
-[cmcp-verify] RESULT: PASS (dev-mode)
+You can also export the hash-chained audit log for a closed session:
+
+```bash
+curl "http://localhost:8443/audit/export?session_id=<session_id>" | python3 -m json.tool
 ```
 
 ---
@@ -205,11 +189,12 @@ In dev mode the output will be:
 
 | Goal | Where to look |
 |---|---|
-| Real financial-services example with Cedar escalation rules | `financial-services/` |
-| Hardware attestation on Azure | See [Azure Trusted Launch docs](https://learn.microsoft.com/azure/virtual-machines/trusted-launch) |
+| Cedar escalation rules with HITL advice | `financial-services/`, `healthcare/` |
+| Per-tenant policy isolation | `multi-tenant-saas/` |
+| Hardware attestation on Azure | [Azure Trusted Launch docs](https://learn.microsoft.com/azure/virtual-machines/trusted-launch) |
 | Writing your own Cedar policies | [Cedar policy language reference](https://www.cedarpolicy.com/en/tutorial) |
 | Protecting a real MCP server | Edit `catalog.json` to point `server.url` at your MCP server |
-| Production enforcement | Change `enforcement_mode: advisory` to `enforcement_mode: enforcing` |
+| Production enforcement | Unset `CMCP_DEV_MODE`; set `CMCP_BEARER_TOKEN`, `CMCP_POLICY_HASH`, `CMCP_CATALOG_HASH` |
 
 ---
 
@@ -225,20 +210,14 @@ listen_addr: 0.0.0.0:9443
 **`cmcp` command not found**
 
 ```bash
-# Make sure pip's bin directory is on PATH:
-python3 -m cmcp --version
-# or:
 pip show cmcp-runtime | grep Location
-export PATH="$PATH:$(pip show cmcp-runtime | grep Location | cut -d' ' -f2)/../../../bin"
-```
-
-**`CMCP_DEV_MODE` not recognised on Windows**
-
-```powershell
-$env:CMCP_DEV_MODE = "1"
-cmcp start --config startup-tpm/cmcp-config.yaml
+# make sure pip's bin/Scripts directory is on PATH
 ```
 
 **Runtime exits immediately**
 
-Check that `policy/` and `catalog.json` exist relative to the working directory from which you run `cmcp start`. The `policy_bundle_path` and `catalog_path` in `cmcp-config.yaml` are resolved relative to the config file's location, not the working directory.
+`policy_bundle_path` and `catalog_path` in `cmcp-config.yaml` are resolved relative to the **working directory** you run `cmcp start` from, not the config file location. Run from inside `startup-tpm/`.
+
+**Tool call returns 502 `UPSTREAM_UNAVAILABLE`**
+
+The mock MCP server is not running on port 8080. Start it (Step 3).

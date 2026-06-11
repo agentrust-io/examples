@@ -49,7 +49,7 @@
     "definition_hash": "sha256:dbfe9ce96ebc7580a162e45e82c65c076e62f39c293c32b93ed1ce20a4b59655",
     "compliance_domain": "internal",
     "requires_baa": false,
-    "sensitivity_level": "internal",
+    "sensitivity_level": "public",
     "added_at": "2026-06-01T00:00:00Z",
     "approved_by": "platform-security@saas.example"
   },
@@ -75,7 +75,7 @@
     "definition_hash": "sha256:9bf90691ce6f3ed9a18da33b6b41f71d12ee77e51d8a81137c1723ea97e1647a",
     "compliance_domain": "internal",
     "requires_baa": false,
-    "sensitivity_level": "internal",
+    "sensitivity_level": "public",
     "added_at": "2026-06-01T00:00:00Z",
     "approved_by": "platform-security@saas.example"
   }

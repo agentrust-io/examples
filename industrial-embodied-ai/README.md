@@ -4,12 +4,18 @@ End-to-end example of an AI agent requesting motion from an industrial robot
 cell through cMCP, with Agent Manifest declarations and a runtime-issued TRACE
 Trust Record.
 
+The example also demonstrates evidence continuity: after the governed session
+closes, its saved TRACE Trust Record and audit bundle remain verifiable after
+the agent, cMCP Runtime and mock controller stop. This is continuity of
+evidence, not continuity of agent memory, reputation or process identity.
+
 The scenario is synthetic. It uses no robot hardware, vendor SDK, production
 endpoint, or proprietary industrial data.
 
 ## What the example demonstrates
 
-The agent runs three paths through a live cMCP Runtime:
+The agent runs three paths through a live cMCP Runtime, then closes the session
+to produce durable evidence:
 
 1. **Allowed and completed:** cMCP authorizes the declared workflow, then the
    independent controller accepts and completes the simulated motion.
@@ -18,6 +24,9 @@ The agent runs three paths through a live cMCP Runtime:
 3. **Safety rejected:** cMCP authorizes the declared workflow, but the
    controller rejects motion after its current state reports a person in the
    safeguarded area.
+4. **Closed-session evidence:** cMCP signs a TRACE Trust Record and audit
+   bundle that can be verified from the saved files without a running agent,
+   runtime or controller.
 
 The third path is the central boundary:
 
@@ -28,19 +37,19 @@ The third path is the central boundary:
 ## Architecture
 
 ```text
- Material-movement agent
-          |
-          | MCP tools/call
-          v
- +--------------------------+     Agent Manifest declares:
- | cMCP Runtime             | <--- agent, prompt, policy and tool hashes
- | - attested tool catalog  |
- | - Cedar authorization    |
- | - hash-chained audit     |
- +------------+-------------+
-              |
-              | authorized request
-              v
+ Signed Agent Manifest                 Material-movement agent
+ - agent identity declaration                   |
+ - prompt, policy and tool hashes               | MCP tools/call
+          |                                      v
+          | offline validator         +--------------------------+
+          +-- compares hashes ------> | cMCP Runtime             |
+                                      | - loads policy + catalog |
+                                      | - Cedar authorization    |
+                                      | - hash-chained audit     |
+                                      +------------+-------------+
+                                                   |
+                                                   | authorized request
+                                                   v
  +-------------------------------+
  | Independent mock controller   |
  | - validates fresh state token |
@@ -53,7 +62,25 @@ The third path is the central boundary:
         Simulated robot execution
 
  Session close -> signed TRACE Trust Record + signed audit bundle
+ Saved files remain verifiable after all three processes stop
 ```
+
+The current cMCP preview loads the policy and catalog directly. It does not
+ingest the Agent Manifest, so the diagram shows an offline hash comparison
+rather than a native runtime binding.
+
+## Trust chain demonstrated
+
+| Boundary | Demonstrated behavior |
+|---|---|
+| Declared agent configuration | A signed Agent Manifest declares the development agent identity and hashes for its prompt, policy and tools |
+| Governed tool access | cMCP intercepts each MCP request and evaluates the active Cedar policy before forwarding |
+| Physical authority | The independent controller rechecks current state and remains authoritative for simulated execution |
+| Durable session evidence | TRACE and the signed audit bundle bind the cMCP session, policy, catalog and tool-call transcript |
+
+The example composes these boundaries without claiming that the developer
+preview already forms one end-to-end identity and outcome proof. The precise
+gaps are listed under [Evidence boundaries](#evidence-boundaries).
 
 ## Run it
 
@@ -128,6 +155,23 @@ The agent writes fresh evidence to:
 These files are ignored by Git. The committed `example-*` files were captured
 from a real run and remain available for offline inspection.
 
+## Verify after shutdown
+
+After the agent exits, stop the cMCP Runtime and mock controller. The fresh
+files can still be verified locally:
+
+```bash
+cmcp verify trace-output/latest-trust-record.json \
+  --policy-hash sha256:c8358148d201749ebd05651ea03cf92fb3ff8cc9cf05816483c394ebc3e1cac9 \
+  --catalog-hash sha256:792c86ff8152fa9713d52584c084611eb4929fa5ebf3ec8271dd21f0e0aa7eeb \
+  --audit-bundle trace-output/latest-audit-bundle.json
+```
+
+This command reads the saved evidence and does not contact the stopped
+services. The normal attestation-freshness window still applies: offline
+verification means that no live runtime is required, not that an old claim
+remains current indefinitely.
+
 ## Hardware-attested run
 
 On a supported host, do not set `CMCP_DEV_MODE`. Pin the expected artifacts
@@ -166,29 +210,28 @@ The validator checks:
 - runtime-issued TRACE schema and signature
 - signed audit-bundle integrity and binding to the TRACE record
 
-To verify fresh output using the cMCP CLI:
-
-```bash
-cmcp verify trace-output/latest-trust-record.json \
-  --policy-hash sha256:c8358148d201749ebd05651ea03cf92fb3ff8cc9cf05816483c394ebc3e1cac9 \
-  --catalog-hash sha256:792c86ff8152fa9713d52584c084611eb4929fa5ebf3ec8271dd21f0e0aa7eeb \
-  --audit-bundle trace-output/latest-audit-bundle.json
-```
-
 ## Evidence boundaries
 
 | Evidence | What it establishes | What it does not establish |
 |---|---|---|
-| Agent Manifest | The signed declaration and hashes of the approved prompt, policy and tools | That the deployed runtime loaded those artifacts |
+| Agent Manifest | The signed agent identity declaration and hashes of the approved prompt, policy and tools | That cMCP loaded the manifest or bound its agent identity to the runtime session |
 | cMCP decision | The active policy authorized or denied a cataloged tool request | That an authorized physical request was safe |
-| TRACE Trust Record | Runtime, policy hash, catalog hash and tool-call transcript integrity | Controller acceptance, physical completion or functional-safety compliance |
-| Controller response | The mock controller's decision returned during this run | A hardware-backed or independently retained execution record |
+| TRACE Trust Record | cMCP session identity, runtime, policy hash, catalog hash and tool-call transcript integrity | The Agent Manifest identity, controller acceptance, physical completion or functional-safety compliance |
+| Saved TRACE and audit files | The closed session can be checked after the processes stop | Continuity of agent memory, reputation or logical identity across a restart or replacement |
+| Client-observed controller response | The mock controller's decision returned to the agent during this run | A signed, hardware-backed or independently retained execution record |
 
 The current cMCP audit bundle records request hashes and authorization
 decisions, but does not populate a response hash for the controller outcome.
 The example therefore does not claim that TRACE proves controller acceptance
 or physical completion. Binding independent controller evidence is a
 follow-up design question, not something this example silently invents.
+
+The committed TRACE subject identifies the cMCP session, while the Agent
+Manifest declares a separate agent identity. The validator confirms that the
+static policy and catalog hashes agree, but the current preview does not
+cryptographically bind that manifest identity to the runtime session. It also
+does not establish that a restarted or replacement process is the same logical
+agent.
 
 ## AgentTrust artifacts
 

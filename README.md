@@ -1,6 +1,7 @@
 ﻿[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![cMCP](https://img.shields.io/badge/Uses-cMCP_Runtime-7c3aed)](https://github.com/agentrust-io/cmcp)
 [![Agent Manifest](https://img.shields.io/badge/Uses-Agent_Manifest-0ea5e9)](https://github.com/agentrust-io/agent-manifest)
+[![Discord](https://dcbadge.limes.pink/api/server/9JWNpH7E?style=flat)](https://discord.gg/9JWNpH7E)
 
 # agentrust-io Examples
 
@@ -47,6 +48,10 @@ See `startup-tpm/README.md` for the full walkthrough.
 ## Status
 
 Launching at Confidential Computing Summit, San Francisco, June 23 2026.
+
+## Community
+
+Questions, feedback, integration help: [Discord](https://discord.gg/9JWNpH7E).
 
 ## License
 

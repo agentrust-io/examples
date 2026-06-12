@@ -4,5 +4,7 @@ listen_addr: 0.0.0.0:8443
 audit_db_path: ./audit-acme-corp.db
 attestation:
   provider: auto
-  enforcement_mode: enforcing
+  # Acme Corp runs advisory: policy violations are logged in the audit chain
+  # and surfaced as would_have_denied + advice, but calls are not blocked.
+  enforcement_mode: advisory
   validity_seconds: 86400

@@ -1,59 +1,27 @@
 # multi-tenant-saas: Per-Tenant Cedar Policy Isolation
 
-End-to-end demo of a SaaS platform serving multiple tenants with different compliance requirements, each enforced by a separate Cedar policy bundle loaded into the cMCP Runtime.
+End-to-end demo of a SaaS platform serving tenants with different compliance postures, each enforced by a separate Cedar policy bundle - and different *enforcement modes* - in the cMCP Runtime.
 
-The same three tool calls produce different outcomes depending on which tenant's policy is active. Acme Corp allows data export with an advisory warning; Globex Financial hard-blocks it because the calling workflow is not the designated data-compliance workflow.
+The same three tool calls produce different outcomes per tenant:
+
+| Tool | acme-corp (advisory) | globex-financial (enforcing) |
+|---|---|---|
+| `saas.analytics_query` | allow | allow |
+| `saas.user_data_export` | advisory_deny (logged, not blocked) | deny |
+| `saas.config_update` | allow | deny |
 
 ---
 
 ## What the demo shows
 
 **1. Policy-as-isolation at the tool boundary**
-Each tenant gets their own Cedar bundle (`tenants/acme-corp/policy/` and `tenants/globex-financial/policy/`). The runtime loads one bundle at startup. Restarting with a different config file switches to the other tenant's rules. Every enforcement decision is recorded in a per-tenant TRACE Trust Record.
+Each tenant has its own Cedar bundle under `tenants/<name>/policy/` and its own runtime config pointing at it. The `trace.policy.version` field in each TRACE record identifies exactly which tenant policy was enforced (`acme-corp-v1.0` vs `globex-financial-v3.2`).
 
-**2. Progressive compliance posture**
-Acme Corp uses advisory enforcement for missing GDPR justifications: the call is logged and flagged but not blocked. Globex Financial, as a regulated financial firm, uses hard deny for the same scenario. The same cMCP Runtime enforces both postures; only the Cedar bundle differs.
+**2. Progressive compliance posture via enforcement mode**
+Acme Corp runs `enforcement_mode: advisory`: a matched forbid is logged in the audit chain and surfaced as `would_have_denied` + advice in the response metadata, but the call proceeds. Globex Financial runs `enforcing` with no catch-all permit - Cedar's default-deny blocks anything not explicitly permitted.
 
-**3. Auditable per-tenant TRACE records**
-Because each tenant runs with a different policy version (`acme-corp-v1.0` vs `globex-financial-v3.2`), the `policy.version` field in the TRACE record identifies exactly which tenant policy was enforced. Regulators, auditors, and tenants can verify their own records independently.
-
----
-
-## Architecture
-
-```
-  +------------------------------------------------------------------+
-  |               SaaS Agent (LLM)  -- analytics-workflow            |
-  |   saas_agent.py -- JSON-RPC 2.0 over HTTP                        |
-  +-------------------------------+----------------------------------+
-                                  |  tools/call (MCP)
-                                  v
-  +------------------------------------------------------------------+
-  |               cMCP Runtime  :8443                                |
-  |                                                                  |
-  |  Policy bundle loaded at startup -- one per tenant:              |
-  |  tenants/acme-corp/policy/        (permissive)                   |
-  |  tenants/globex-financial/policy/ (strict GDPR)                  |
-  +-------------------------------+----------------------------------+
-                                  |  proxied tool call
-                                  v
-  +------------------------------------------------------------------+
-  |               SaaS Platform MCP Server  :8080                    |
-  |   saas.analytics_query                                            |
-  |   saas.user_data_export                                           |
-  |   saas.config_update                                              |
-  +------------------------------------------------------------------+
-```
-
----
-
-## Tenant policy comparison
-
-| Tool | acme-corp | globex-financial |
-|---|---|---|
-| `saas.analytics_query` | allow | allow |
-| `saas.user_data_export` | advisory_deny (no GDPR justification) | deny (wrong workflow) |
-| `saas.config_update` | allow | advisory_deny (wrong workflow) |
+**3. Structured advice on denies**
+Both tenants' forbid rules carry `@annotation` metadata (GDPR article, required workflow) that the runtime returns to the caller - in `error.data.advice` for hard denies, in `_cmcp.advice` for advisory ones.
 
 ---
 
@@ -61,43 +29,24 @@ Because each tenant runs with a different policy version (`acme-corp-v1.0` vs `g
 
 ```
 multi-tenant-saas/
-  cmcp-config-acme-corp.yaml            Runtime config for Acme Corp
-  cmcp-config-globex-financial.yaml     Runtime config for Globex Financial
-  catalog.json                          Shared three-tool catalog
+  cmcp-config-acme-corp.yaml            advisory mode -> tenants/acme-corp/policy
+  cmcp-config-globex-financial.yaml     enforcing mode -> tenants/globex-financial/policy
+  catalog.json                          shared three-tool catalog
   tenants/
-    acme-corp/
-      policy/
-        manifest.json                   acme-corp-v1.0
-        allow.cedar                     Permissive rules
-        schema.cedarschema
-    globex-financial/
-      policy/
-        manifest.json                   globex-financial-v3.2
-        allow.cedar                     Strict GDPR rules
-        schema.cedarschema
+    acme-corp/policy/                   acme-corp-v1.0 (permissive)
+    globex-financial/policy/            globex-financial-v3.2 (default-deny)
+  server/
+    mock_mcp_server.py                  mock upstream MCP server (stdlib only)
   agent/
-    saas_agent.py                       Demo agent (run this)
+    saas_agent.py                       demo agent (run this)
   trace-output/
-    acme-corp-example.json              Reference TRACE output for Acme Corp
-    globex-financial-example.json       Reference TRACE output for Globex Financial
+    acme-corp-example.json              real captured TRACE record (advisory)
+    globex-financial-example.json       real captured TRACE record (enforcing)
 ```
 
 ---
 
-## Prerequisites
-
-| Requirement | Version | Notes |
-|---|---|---|
-| Python | 3.11+ | `python3 --version` |
-| pip | any recent | `pip --version` |
-| httpx | 0.27+ | installed by `pip install cmcp-runtime` |
-| cmcp-runtime | latest | `pip install cmcp-runtime` |
-
-No hardware TEE or TPM required for this demo. The runtime runs in `CMCP_DEV_MODE=1`.
-
----
-
-## Step 1 - Clone and install
+## Run it
 
 ```bash
 git clone https://github.com/agentrust-io/examples.git
@@ -105,172 +54,101 @@ cd examples
 pip install cmcp-runtime httpx
 ```
 
----
-
-## Step 2 - Run the demo for Acme Corp
-
-**Terminal 1 - start the runtime with Acme Corp's policy:**
+**Terminal 1 - mock MCP server:**
 
 ```bash
-CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-acme-corp.yaml
+cd multi-tenant-saas
+python server/mock_mcp_server.py
 ```
 
-Expected startup output:
-
-```
-[cmcp] policy bundle loaded: acme-corp-v1.0
-[cmcp] catalog loaded: 3 tools
-[cmcp] listening on 0.0.0.0:8443
-```
-
-**Terminal 2 - run the agent:**
+**Terminal 2 - runtime with Acme Corp's policy** (run from inside `multi-tenant-saas/`):
 
 ```bash
+cd multi-tenant-saas
+CMCP_DEV_MODE=1 cmcp start --config cmcp-config-acme-corp.yaml
+```
+
+**Terminal 3 - agent:**
+
+```bash
+cd examples
 python multi-tenant-saas/agent/saas_agent.py --tenant acme-corp
 ```
 
-Expected output:
-
 ```
-Connecting to cMCP gateway at http://localhost:8443
-Tenant:   acme-corp
-Workflow: analytics-workflow
-
-Running the same three tool calls against acme-corp's policy bundle.
-
 [1/3] Calling saas.analytics_query ...
       -> decision: allow
 [2/3] Calling saas.user_data_export ...
-      -> decision: advisory_deny
-         reason:   gdpr-justification-missing
-         regulation: gdpr-art-6
+      -> decision: advisory_deny (logged, not blocked)
+         advice from policy:
+           id: gdpr-justification-missing
+           reason: gdpr-justification-missing
+           regulation: gdpr-art-6
 [3/3] Calling saas.config_update ...
       -> decision: allow
-
-=== TRACE Trust Record ===
-{ "policy": { "version": "acme-corp-v1.0", ... }, ... }
 ```
 
-`user_data_export` is advisory: the call was logged and flagged but not blocked.
-
----
-
-## Step 3 - Run the demo for Globex Financial
-
-Stop the runtime (Ctrl-C), then restart with Globex Financial's policy:
-
-**Terminal 1:**
+**Switch tenants** - stop the runtime (Ctrl-C) and restart with Globex Financial's config:
 
 ```bash
-CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-globex-financial.yaml
+CMCP_DEV_MODE=1 cmcp start --config cmcp-config-globex-financial.yaml
 ```
-
-Expected startup output:
-
-```
-[cmcp] policy bundle loaded: globex-financial-v3.2
-[cmcp] catalog loaded: 3 tools
-[cmcp] listening on 0.0.0.0:8443
-```
-
-**Terminal 2:**
 
 ```bash
 python multi-tenant-saas/agent/saas_agent.py --tenant globex-financial
 ```
 
-Expected output:
-
 ```
-Connecting to cMCP gateway at http://localhost:8443
-Tenant:   globex-financial
-Workflow: analytics-workflow
-
-Running the same three tool calls against globex-financial's policy bundle.
-
 [1/3] Calling saas.analytics_query ...
       -> decision: allow
 [2/3] Calling saas.user_data_export ...
-      -> decision: deny
+      -> decision: deny (POLICY_DENY)
+         advice from policy:
+           id: export-requires-compliance-workflow
+           reason: export-requires-data-compliance-workflow
+           regulation: gdpr-art-6
 [3/3] Calling saas.config_update ...
-      -> decision: advisory_deny
-         reason:   config-update-requires-admin-workflow
-
-=== TRACE Trust Record ===
-{ "policy": { "version": "globex-financial-v3.2", ... }, ... }
+      -> decision: deny (POLICY_DENY)
+         advice from policy:
+           id: config-update-requires-admin-workflow
+           reason: config-update-requires-admin-workflow
 ```
 
-`user_data_export` is a hard deny: the call was blocked. `config_update` is advisory.
-
-The `policy.version` field in the TRACE record shows `globex-financial-v3.2`, which is the field that identifies which tenant's policy was enforced for each session.
+Each run ends by closing the session and printing the signed TRACE Trust Record. Compare `trace.policy.version` and `gateway.call_summary.tool_calls_denied` across the two captured examples in `trace-output/`.
 
 ---
 
-## Step 4 - Verify the TRACE record
+## How the policies differ
 
-```bash
-curl -s http://localhost:8443/trace > trace.json
-cmcp-verify trace.json
+**Acme Corp** (`tenants/acme-corp/policy/allow.cedar`): a catch-all permit plus one annotated forbid - user data export without a `gdpr_justification` argument. Under advisory mode this logs and flags but does not block.
+
+**Globex Financial** (`tenants/globex-financial/policy/allow.cedar`): no catch-all. Explicit permits per tool, gated on the workflow the agent declares via `_cmcp.workflow_id`:
+
+```cedar
+permit (
+  principal,
+  action == Action::"Saas.userDataExport",
+  resource
+) when {
+  context has workflow_id &&
+  context.workflow_id == "data-compliance-workflow"
+};
 ```
 
----
-
-## Understanding the Cedar policies
-
-### Acme Corp (`tenants/acme-corp/policy/allow.cedar`)
-
-- Permit analytics-workflow for all tools
-- Advisory forbid on `saas.user_data_export` when no GDPR justification is present (logged only)
-- Catch-all permit
-
-### Globex Financial (`tenants/globex-financial/policy/allow.cedar`)
-
-- Permit `data-compliance-workflow` only for `saas.user_data_export`
-- Permit `admin-workflow` only for `saas.config_update`
-- Permit any workflow for `saas.analytics_query`
-- Hard deny `saas.user_data_export` for all other workflows
-- Advisory deny `saas.config_update` for all other workflows
-
-The difference: Acme Corp trusts its analytics workflow to handle data exports (advisory only). Globex Financial requires a purpose-specific workflow for any personal data access (hard deny by default).
+The demo agent runs as `analytics-workflow`, so exports and config updates deny. Annotated forbid rules make those denies carry structured advice instead of being silent default-denies.
 
 ---
 
 ## Running both tenants simultaneously
 
-To demonstrate both tenants side by side without restarting, run on different ports:
-
-**Terminal 1 - Acme Corp on 8443:**
-
-```yaml
-# cmcp-config-acme-corp.yaml: listen_addr: 0.0.0.0:8443
-```
-
-```bash
-CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-acme-corp.yaml
-```
-
-**Terminal 2 - Globex Financial on 8444:**
-
-Edit `cmcp-config-globex-financial.yaml` to set `listen_addr: 0.0.0.0:8444`, then:
-
-```bash
-CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-globex-financial.yaml
-```
-
-**Terminal 3:**
+Run two runtimes on different ports (edit `listen_addr` in one config), one per tenant, against the same mock server:
 
 ```bash
 python multi-tenant-saas/agent/saas_agent.py --tenant acme-corp --gateway http://localhost:8443
-python multi-tenant-saas/agent/saas_agent.py --tenant globex-financial --gateway http://localhost:8444
+python multi-tenant-saas/agent/saas_agent.py --tenant globex-financial --gateway http://localhost:9443
 ```
 
----
-
-## Production path
-
-In production, per-tenant isolation is enforced by provisioning one cMCP Runtime instance per tenant (or per tenant isolation boundary), each started with that tenant's policy bundle. The runtime's TEE attestation report covers the specific policy hash that was loaded, and the TRACE Trust Record is evidence that *this specific bundle* was enforced for *this session*.
-
-Hot-reload (`policy_reload_interval_seconds` in the config) allows policy updates without restarts, but the hash pinning (`CMCP_POLICY_HASH` env var) must be updated to match the new bundle.
+This is the production topology: one attested runtime instance per tenant isolation boundary, each measuring its own policy bundle hash into its TRACE records.
 
 ---
 

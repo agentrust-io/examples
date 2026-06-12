@@ -10,23 +10,32 @@ End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working 
 
 | Example | What it shows | Platform | Compliance |
 |---|---|---|---|
-| `financial-services/` | Payment agent with Cedar policy: blocks PII in tool call parameters | SEV-SNP / TDX | EU AI Act Art. 9/12, DORA Art. 9 |
-| `healthcare/` | Clinical decision agent with HITL approvals and EU AI Act Art. 14 compliance records | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
+| `financial-services/` | Credit risk agent: MiFID II escalation deny above EUR 500k with structured policy advice | SEV-SNP / TDX | EU AI Act Art. 9/12, MiFID II Art. 25, DORA Art. 9 |
+| `healthcare/` | Clinical decision agent: EU AI Act Art. 14 HITL deny on high-risk treatment plans | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
 | `industrial-embodied-ai/` | Material-movement agent with cMCP authorization, an independent safety-controller boundary and offline-verifiable closed-session evidence | TEE / software-only development mode | OT security and industrial robot safety references |
-| `multi-tenant-saas/` | SaaS platform with per-tenant policy isolation | TDX | Customer contract SLA |
+| `multi-tenant-saas/` | Per-tenant Cedar policy bundles and enforcement modes (advisory vs enforcing) | TDX | GDPR Art. 6, customer contract SLA |
 | `startup-tpm/` | 15-minute quickstart on any cloud VM with Trusted Launch | TPM 2.0 | Development / staging |
+
+Each example is fully runnable with no external dependencies: it ships a mock upstream MCP server, an agent script, an attested tool catalog, and a Cedar policy bundle, and ends by printing the signed TRACE Trust Record for the session. The `trace-output/` files in each example are captured from real runs.
 
 ## Quickstart
 
-The fastest path: any Azure, AWS, or GCP VM with Trusted Launch enabled.
-
 ```bash
-pip install cmcp-runtime agent-manifest
-cp examples/startup-tpm/cmcp-config.yaml .
-cmcp start --config cmcp-config.yaml --enforcement advisory
+git clone https://github.com/agentrust-io/examples.git
+cd examples/startup-tpm
+pip install cmcp-runtime httpx
+
+# Terminal 1: mock upstream MCP server
+python server/mock_mcp_server.py
+
+# Terminal 2: the runtime (CMCP_DEV_MODE=1 for machines without a TPM/TEE)
+CMCP_DEV_MODE=1 cmcp start --config cmcp-config.yaml
+
+# Terminal 3: one tool call + signed TRACE Trust Record
+python agent/echo_agent.py
 ```
 
-This starts the runtime in advisory mode (no blocking, full logging) and emits a TRACE Trust Record for every MCP tool call.
+See `startup-tpm/README.md` for the full walkthrough.
 
 ## Prerequisites
 

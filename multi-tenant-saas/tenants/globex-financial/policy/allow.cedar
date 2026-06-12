@@ -1,54 +1,60 @@
 // Cedar policy bundle for Globex Financial tenant
 // version: globex-financial-v3.2
-// Financial services tenant — strict GDPR compliance required.
-// User data export is only permitted for the data-compliance-workflow.
-// Config updates are only permitted for the admin-workflow.
+//
+// Globex Financial runs in ENFORCING mode with no catch-all permit:
+// anything not explicitly permitted is denied (Cedar default-deny).
+// The workflow_id is supplied by the agent via the _cmcp request metadata.
 
-// Rule 1: Permit data-compliance-workflow to export user data.
+// Rule 1: any workflow may run read-only analytics queries.
 permit (
   principal,
-  action == Action::"tool_call",
-  resource == Tool::"saas.user_data_export"
+  action == Action::"Saas.analyticsQuery",
+  resource
+);
+
+// Rule 2: only the data-compliance workflow may export user data.
+permit (
+  principal,
+  action == Action::"Saas.userDataExport",
+  resource
 ) when {
+  context has workflow_id &&
   context.workflow_id == "data-compliance-workflow"
 };
 
-// Rule 2: Permit admin-workflow to update configuration.
+// Rule 3: only the admin workflow may update configuration.
 permit (
   principal,
-  action == Action::"tool_call",
-  resource == Tool::"saas.config_update"
+  action == Action::"Saas.configUpdate",
+  resource
 ) when {
+  context has workflow_id &&
   context.workflow_id == "admin-workflow"
 };
 
-// Rule 3: Permit any workflow to run read-only analytics queries.
-permit (
-  principal,
-  action == Action::"tool_call",
-  resource == Tool::"saas.analytics_query"
-);
-
-// Rule 4: Deny user data export for all other workflows (hard deny, no advice).
-// Financial services regulations require explicit GDPR Article 6 lawful basis
-// per request. Only the data-compliance-workflow is authorised to invoke this.
+// Rule 4: explicit annotated forbid for data export outside the
+// data-compliance workflow, so the deny carries structured advice.
+@id("export-requires-compliance-workflow")
+@reason("export-requires-data-compliance-workflow")
+@regulation("gdpr-art-6")
 forbid (
   principal,
-  action == Action::"tool_call",
-  resource == Tool::"saas.user_data_export"
+  action == Action::"Saas.userDataExport",
+  resource
 ) when {
+  !(context has workflow_id) ||
   context.workflow_id != "data-compliance-workflow"
 };
 
-// Rule 5: Advisory forbid on config updates outside the admin-workflow.
-// Logged for the security team; does not block.
+// Rule 5: explicit annotated forbid for config updates outside the
+// admin workflow.
+@id("config-update-requires-admin-workflow")
+@reason("config-update-requires-admin-workflow")
 forbid (
   principal,
-  action == Action::"tool_call",
-  resource == Tool::"saas.config_update"
+  action == Action::"Saas.configUpdate",
+  resource
 ) when {
+  !(context has workflow_id) ||
   context.workflow_id != "admin-workflow"
-} advice {
-  "reason": "config-update-requires-admin-workflow",
-  "action": "advisory-log-and-notify-security"
 };

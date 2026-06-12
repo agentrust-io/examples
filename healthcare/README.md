@@ -196,6 +196,26 @@ curl "http://localhost:8443/audit/export?session_id=<id>" | python3 -m json.tool
 
 ---
 
+## Regulatory Variants
+
+This demo uses EU AI Act Art. 14 and HIPAA as its primary policy example. Additional
+variants in subdirectories show how the same cMCP + TRACE architecture maps to other
+healthcare regulatory frameworks. The Cedar policy and TRACE record fields change;
+the runtime architecture does not.
+
+| Variant | Jurisdiction | Regulatory focus |
+|---------|-------------|-----------------|
+| This demo | EU + US | EU AI Act Art. 14 human oversight + HIPAA PHI |
+| [`us-fda-samd/`](us-fda-samd/README.md) | United States | FDA SaMD Action Plan -- cleared-scope enforcement, 21 CFR Part 820 |
+| [`uk-nhs/`](uk-nhs/README.md) | United Kingdom | UK GDPR Art. 22 -- DSPT token gate, MHRA AI as medical device |
+| [`sg-moh/`](sg-moh/README.md) | Singapore | IMDA AI Governance Tier 1/2 -- PDPA consent, MOH guidelines |
+
+Each variant includes a Cedar policy file showing jurisdiction-specific rules and a
+TRACE Trust Record with the `runtime.region`, `runtime.provider`, and
+`compliance_domains_touched` fields set for that jurisdiction.
+
+---
+
 ## License
 
 Apache 2.0. See [LICENSE](../LICENSE) in the repo root.

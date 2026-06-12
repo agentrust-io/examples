@@ -19,7 +19,7 @@
       }
     },
     "definition_hash": "sha256:75312282f7ecce285ee6a091a261e99cb36d5ab5955bbb16536dca0baa45abb6",
-    "compliance_domain": "hipaa_phi",
+    "compliance_domain": "mnpi",
     "requires_baa": false,
     "sensitivity_level": "confidential",
     "added_at": "2026-06-01T00:00:00Z",
@@ -75,7 +75,7 @@
     "definition_hash": "sha256:b98f4ffffd0d4699eeb0bc360ac8a966adf6b008359cd798e10c99546ce029f1",
     "compliance_domain": "internal",
     "requires_baa": false,
-    "sensitivity_level": "internal",
+    "sensitivity_level": "confidential",
     "added_at": "2026-06-01T00:00:00Z",
     "approved_by": "risk-committee@bank.eu"
   }

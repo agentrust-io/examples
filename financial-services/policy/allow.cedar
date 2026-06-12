@@ -1,45 +1,74 @@
 // Cedar policy bundle for EU credit risk agent
 // version: credit-risk-v4.2
 // author: compliance@bank.eu
+//
+// Action names follow the cMCP convention: tool_name converted to
+// PascalCase per underscore segment, e.g. finance.risk_report_writer
+// becomes Action::"Finance.riskReportWriter".
+//
+// There is deliberately NO catch-all permit: anything not explicitly
+// permitted below is denied (Cedar default-deny). The workflow_id is
+// supplied by the agent via the _cmcp request metadata; calls without
+// it are denied.
 
-// Rule 1: Permit the credit-risk-analyst workflow to call any approved tool.
+// Rule 1: the credit-risk-analyst workflow may read client documents.
 permit (
   principal,
-  action == Action::"tool_call",
+  action == Action::"Finance.documentReader",
   resource
 ) when {
+  context has workflow_id &&
   context.workflow_id == "credit-risk-analyst"
 };
 
-// Rule 2: Advisory forbid on large credit recommendations (> 500,000 EUR).
-// In advisory enforcement_mode this logs the violation and adds a TRACE annotation
-// rather than hard-blocking the call.  A human reviewer must approve before
-// any downstream disbursement system will accept the recommendation.
-forbid (
+// Rule 2: the credit-risk-analyst workflow may query credit bureaus.
+permit (
   principal,
-  action == Action::"tool_call",
-  resource == Tool::"finance.risk_report_writer"
-) when {
-  context.amount_eur > 500000
-} advice {
-  "reason": "human-review-required",
-  "escalation_threshold_eur": 500000
-};
-
-// Rule 3: Deny confidential tool calls if the session sensitivity has been
-// downgraded to "public".  This prevents accidental data-class mismatch.
-forbid (
-  principal,
-  action == Action::"tool_call",
+  action == Action::"Finance.creditScoreLookup",
   resource
 ) when {
-  context.session_max_sensitivity == "public" &&
-  resource.compliance_domain == "confidential"
+  context has workflow_id &&
+  context.workflow_id == "credit-risk-analyst"
 };
 
-// Rule 4: Catch-all permit — any action not matched by a forbid above is allowed.
+// Rule 3: the credit-risk-analyst workflow may write risk reports.
+// Subject to the large-exposure forbid below.
 permit (
+  principal,
+  action == Action::"Finance.riskReportWriter",
+  resource
+) when {
+  context has workflow_id &&
+  context.workflow_id == "credit-risk-analyst"
+};
+
+// Rule 4: large-exposure escalation (MiFID II Art. 25).
+// Any risk report above 500,000 EUR requires a human reviewer. The
+// annotations are returned to the caller as structured advice on deny.
+@id("large-exposure-hitl")
+@reason("human-review-required")
+@regulation("mifid-ii-art-25")
+@escalation_threshold_eur("500000")
+forbid (
+  principal,
+  action == Action::"Finance.riskReportWriter",
+  resource
+) when {
+  context.arguments has amount_eur &&
+  context.arguments.amount_eur > 500000
+};
+
+// Rule 5: confidential financial data may only flow through an attested
+// runtime. attestation_platform is supplied by the gateway from the TEE
+// attestation report; "unknown" means no attestation evidence is present.
+@id("require-attested-runtime")
+@reason("attested-runtime-required")
+@regulation("dora-art-9")
+forbid (
   principal,
   action,
   resource
-);
+) when {
+  context.compliance_domain == "mnpi" &&
+  context.attestation_platform == "unknown"
+};

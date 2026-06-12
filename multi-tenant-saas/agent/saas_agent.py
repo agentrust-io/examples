@@ -2,21 +2,17 @@
 """
 SaaS platform agent demo showing per-tenant Cedar policy isolation.
 
-Calls three platform tools through the cMCP gateway using raw JSON-RPC 2.0 over HTTP.
-No MCP SDK required -- httpx only.
+Runs the same three tool calls; the outcome depends on which tenant's policy
+bundle the runtime was started with:
+
+    acme-corp        (advisory): analytics allow, user_data_export
+                     advisory_deny with GDPR advice (logged, not blocked),
+                     config_update allow
+    globex-financial (enforcing): analytics allow, user_data_export deny,
+                     config_update deny -- both with structured advice
 
 Usage:
-    python saas_agent.py [--gateway http://localhost:8443] --tenant acme-corp|globex-financial
-
-Start the runtime with the matching config before running:
-    CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-acme-corp.yaml
-    CMCP_DEV_MODE=1 cmcp start --config multi-tenant-saas/cmcp-config-globex-financial.yaml
-
-Expected results:
-    acme-corp        : analytics_query=allow, user_data_export=advisory_deny (no justification),
-                       config_update=allow
-    globex-financial : analytics_query=allow, user_data_export=deny (wrong workflow),
-                       config_update=advisory_deny (wrong workflow)
+    python saas_agent.py --tenant acme-corp|globex-financial [--gateway http://localhost:8443]
 """
 
 import argparse
@@ -28,126 +24,106 @@ DEFAULT_GATEWAY = "http://localhost:8443"
 WORKFLOW_ID = "analytics-workflow"
 
 
-# ---------------------------------------------------------------------------
-# JSON-RPC helpers
-# ---------------------------------------------------------------------------
-
-def make_call(client: httpx.Client, gateway: str, tool_name: str, arguments: dict, req_id: int) -> dict:
-    """Send a tools/call to the cMCP gateway. Returns the result dict or a _denied marker."""
+def call_tool(client: httpx.Client, gateway: str, tool_name: str, arguments: dict, req_id: int) -> dict:
     payload = {
         "jsonrpc": "2.0",
         "id": req_id,
         "method": "tools/call",
-        "params": {"name": tool_name, "arguments": arguments},
+        "params": {
+            "name": tool_name,
+            "arguments": arguments,
+            "_cmcp": {"workflow_id": WORKFLOW_ID},
+        },
     }
     resp = client.post(f"{gateway}/mcp", json=payload, timeout=30)
-    resp.raise_for_status()
     body = resp.json()
     if "error" in body:
-        err = body["error"]
-        data = err.get("data", {})
-        if isinstance(data, dict) and data.get("decision") in ("deny", "advisory_deny"):
-            return {"_denied": True, "_decision": data.get("decision"), "_error": err}
-        raise RuntimeError(f"Tool call error from {tool_name}: {err}")
-    return body.get("result", {})
+        return {"ok": False, "error": body["error"], "session_id": None}
+    result = body["result"]
+    return {
+        "ok": True,
+        "result": result,
+        "session_id": result.get("_cmcp", {}).get("session_id"),
+    }
 
 
-def fetch_trace(client: httpx.Client, gateway: str) -> dict:
-    resp = client.get(f"{gateway}/trace", timeout=10)
+def print_outcome(outcome: dict) -> None:
+    if outcome["ok"]:
+        meta = outcome["result"].get("_cmcp", {})
+        if meta.get("would_have_denied"):
+            print("      -> decision: advisory_deny (logged, not blocked)")
+            advice = meta.get("advice")
+            if advice:
+                print("         advice from policy:")
+                for key, value in advice.items():
+                    print(f"           {key}: {value}")
+        else:
+            print("      -> decision: allow")
+    else:
+        data = outcome["error"].get("data", {})
+        print(f"      -> decision: deny ({data.get('error_code', 'unknown')})")
+        advice = data.get("advice")
+        if advice:
+            print("         advice from policy:")
+            for key, value in advice.items():
+                print(f"           {key}: {value}")
+
+
+def close_session(client: httpx.Client, gateway: str, session_id: str) -> dict:
+    resp = client.post(f"{gateway}/sessions/{session_id}/close", timeout=10)
     resp.raise_for_status()
     return resp.json()
 
 
-def print_result(step: str, tool: str, result: dict) -> None:
-    if result.get("_denied"):
-        err = result["_error"]
-        data = err.get("data", {})
-        decision = result["_decision"]
-        print(f"      -> decision: {decision}")
-        if data.get("reason"):
-            print(f"         reason:   {data['reason']}")
-        if data.get("regulation"):
-            print(f"         regulation: {data['regulation']}")
-    else:
-        print(f"      -> decision: {result.get('cmcp_decision', 'allow')}")
-
-
-# ---------------------------------------------------------------------------
-# Main demo flow
-# ---------------------------------------------------------------------------
-
 def run(gateway: str, tenant: str) -> None:
-    print(f"Connecting to cMCP gateway at {gateway}")
+    print(f"Connecting to cMCP Runtime at {gateway}")
     print(f"Tenant:   {tenant}")
     print(f"Workflow: {WORKFLOW_ID}")
     print()
     print(f"Running the same three tool calls against {tenant}'s policy bundle.")
     print()
 
+    session_id = None
     with httpx.Client(headers={"Content-Type": "application/json"}) as client:
-
-        # Call 1: analytics_query — allowed for all tenants.
         print("[1/3] Calling saas.analytics_query ...")
-        r1 = make_call(
-            client, gateway,
-            tool_name="saas.analytics_query",
-            arguments={"metric": "daily_active_users", "time_range_days": 30},
-            req_id=1,
-        )
-        print_result("1/3", "saas.analytics_query", r1)
+        o1 = call_tool(client, gateway, "saas.analytics_query",
+                       {"metric": "daily_active_users", "time_range_days": 30}, 1)
+        print_outcome(o1)
+        session_id = o1.get("session_id") or session_id
 
-        # Call 2: user_data_export — advisory warn for acme-corp, hard deny for globex-financial.
         print("[2/3] Calling saas.user_data_export ...")
-        r2 = make_call(
-            client, gateway,
-            tool_name="saas.user_data_export",
-            arguments={"user_id": "usr_abc123", "format": "json"},
-            req_id=2,
-        )
-        print_result("2/3", "saas.user_data_export", r2)
+        o2 = call_tool(client, gateway, "saas.user_data_export",
+                       {"user_id": "usr_abc123", "format": "json"}, 2)
+        print_outcome(o2)
+        session_id = o2.get("session_id") or session_id
 
-        # Call 3: config_update — allowed for acme-corp, advisory deny for globex-financial.
         print("[3/3] Calling saas.config_update ...")
-        r3 = make_call(
-            client, gateway,
-            tool_name="saas.config_update",
-            arguments={"key": "session_timeout_minutes", "value": "60"},
-            req_id=3,
-        )
-        print_result("3/3", "saas.config_update", r3)
+        o3 = call_tool(client, gateway, "saas.config_update",
+                       {"key": "session_timeout_minutes", "value": "60"}, 3)
+        print_outcome(o3)
+        session_id = o3.get("session_id") or session_id
 
         print()
-        print("Fetching TRACE Trust Record from gateway ...")
-        try:
-            trace = fetch_trace(client, gateway)
-            print()
-            print("=== TRACE Trust Record ===")
-            print(json.dumps(trace, indent=2))
-        except Exception as exc:
-            print(f"  (Could not fetch live TRACE record: {exc})")
-            print(f"  See multi-tenant-saas/trace-output/{tenant}-example.json for reference output.")
+        if session_id is None:
+            print("No session id received - cannot fetch TRACE Trust Record.")
             sys.exit(1)
 
+        print(f"Closing session {session_id} and fetching the signed TRACE Trust Record ...")
+        claim = close_session(client, gateway, session_id)
+        print()
+        print("=== TRACE Trust Record (signed RuntimeClaim) ===")
+        print(json.dumps(claim, indent=2))
+
     print()
-    print("Done. Start the runtime with the other tenant config to see the policy difference.")
+    print("Done. Restart the runtime with the other tenant config to see the policy difference.")
 
-
-# ---------------------------------------------------------------------------
-# Entrypoint
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SaaS multi-tenant policy isolation demo")
-    parser.add_argument(
-        "--gateway",
-        default=DEFAULT_GATEWAY,
-        help=f"cMCP gateway base URL (default: {DEFAULT_GATEWAY})",
-    )
-    parser.add_argument(
-        "--tenant",
-        required=True,
-        choices=["acme-corp", "globex-financial"],
-        help="Which tenant config the runtime was started with",
-    )
+    parser.add_argument("--gateway", default=DEFAULT_GATEWAY,
+                        help=f"cMCP Runtime base URL (default: {DEFAULT_GATEWAY})")
+    parser.add_argument("--tenant", required=True,
+                        choices=["acme-corp", "globex-financial"],
+                        help="Which tenant config the runtime was started with")
     args = parser.parse_args()
     run(args.gateway, args.tenant)

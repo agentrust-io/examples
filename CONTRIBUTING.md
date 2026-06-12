@@ -2,6 +2,12 @@
 
 Thank you for your interest in contributing to AgentTrust examples.
 
+## Scope: what belongs here
+
+This repo carries first-party examples and flagship partner examples developed with the maintainers. Every line is reviewed and every claim in a README is verified against a real run before merge.
+
+**Vendor and product integrations belong in [agentrust-io/integrations](https://github.com/agentrust-io/integrations)** - self-serve, with published rules and a community/verified tier model. PRs adding vendor integrations here will be redirected there.
+
 ## How to Contribute
 
 1. Fork the repository and create a feature branch (`git checkout -b feat/my-example`)

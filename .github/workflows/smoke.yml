@@ -1,0 +1,53 @@
+name: Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "startup-tpm/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "startup-tpm/**"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install cmcp-runtime httpx
+
+      - name: Start mock MCP server
+        run: python startup-tpm/server/mock_mcp_server.py &
+
+      - name: Start cMCP gateway
+        working-directory: startup-tpm
+        env:
+          CMCP_DEV_MODE: "1"
+        run: cmcp start --config cmcp-config.yaml &
+
+      - name: Wait for gateway
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8443/health > /dev/null 2>&1; then
+              echo "Gateway ready"
+              exit 0
+            fi
+            echo "Waiting ($i)..."
+            sleep 2
+          done
+          echo "Gateway did not become ready in time" >&2
+          exit 1
+
+      - name: Run agent
+        run: python startup-tpm/agent/echo_agent.py

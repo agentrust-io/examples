@@ -19,8 +19,11 @@ to produce durable evidence:
 
 1. **Allowed and completed:** cMCP authorizes the declared workflow, then the
    independent controller accepts and completes the simulated motion.
-2. **Policy denied:** cMCP denies an undeclared workflow before the controller
-   receives the request.
+2. **Scope denied:** the agent requests a motion whose physical parameters sit
+   inside the safety envelope (an approved zone, an in-limit speed), but under
+   an undeclared workflow. cMCP denies it on scope before the controller is
+   consulted. Physical safety was never the question: the trust layer withholds
+   the action because it falls outside the agent's declared purpose.
 3. **Safety rejected:** cMCP authorizes the declared workflow, but the
    controller rejects motion after its current state reports a person in the
    safeguarded area.
@@ -28,11 +31,23 @@ to produce durable evidence:
    bundle that can be verified from the saved files without a running agent,
    runtime or controller.
 
-The third path is the central boundary:
+Two boundaries sit at the center of this example, and they point in opposite
+directions:
 
 > A cMCP `allow` decision means the software request is authorized. It does
 > not mean that a physical action is safe, accepted by the controller, or
 > completed by a machine.
+
+> A controller `accept` decision means a motion is inside the safety envelope.
+> It does not mean the action was authorized, in declared scope, or issued by
+> the agent that was reviewed. The safety controller has no concept of
+> workflow, declared purpose, or agent identity, so it cannot answer those
+> questions. The trust layer is what answers them.
+
+The third path shows the first boundary: an authorized request the controller
+still refuses. The second path shows the second boundary: an in-envelope motion
+the trust layer refuses on scope. Neither layer subsumes the other, and an
+individually safe motion is not, by itself, a trusted one.
 
 ## Architecture
 
@@ -75,12 +90,34 @@ rather than a native runtime binding.
 |---|---|
 | Declared agent configuration | A signed Agent Manifest declares the development agent identity and hashes for its prompt, policy and tools |
 | Governed tool access | cMCP intercepts each MCP request and evaluates the active Cedar policy before forwarding |
+| Scope over safety | cMCP denies an in-envelope motion that falls outside the declared workflow, a check the safety controller does not perform |
 | Physical authority | The independent controller rechecks current state and remains authoritative for simulated execution |
 | Durable session evidence | TRACE and the signed audit bundle bind the cMCP session, policy, catalog and tool-call transcript |
 
 The example composes these boundaries without claiming that the developer
 preview already forms one end-to-end identity and outcome proof. The precise
 gaps are listed under [Evidence boundaries](#evidence-boundaries).
+
+## Why individually safe motions still need trust
+
+A safety controller answers one question per motion: is this movement, right
+now, inside the envelope. It cannot answer whether a long run of individually
+safe motions adds up to something the operator never authorized: an agent that
+quietly skips an inspection step, drifts from its declared task, or runs a
+configuration that no longer matches the one that was reviewed. Every motion
+passes. The harm is in the pattern, not in any single move, and no safety
+controller is built to see it.
+
+That is why the durable evidence matters as much as the live decision. The
+signed TRACE record and audit bundle let a later reader, an auditor or an
+insurer who has no reason to trust the operator's database, reconstruct which
+agent configuration acted, under which policy, and against which declared scope,
+across the whole session. The trust layer is not a second safety check. It
+answers a different question, on a different clock, that physical safety alone
+cannot. The controller-side of this boundary is pinned by
+`test_safe_motion_is_not_proof_of_authorization` in `tests/test_controller.py`:
+a motion the controller accepts as safe carries no claim about scope, purpose
+or agent identity.
 
 ## Run it
 
@@ -216,6 +253,7 @@ The validator checks:
 |---|---|---|
 | Agent Manifest | The signed agent identity declaration and hashes of the approved prompt, policy and tools | That cMCP loaded the manifest or bound its agent identity to the runtime session |
 | cMCP decision | The active policy authorized or denied a cataloged tool request | That an authorized physical request was safe |
+| Controller accept | The motion was inside the safety envelope for this run | That the action was authorized, in declared scope, or issued by the reviewed agent |
 | TRACE Trust Record | cMCP session identity, runtime, policy hash, catalog hash and tool-call transcript integrity | The Agent Manifest identity, controller acceptance, physical completion or functional-safety compliance |
 | Saved TRACE and audit files | The closed session can be checked after the processes stop | Continuity of agent memory, reputation or logical identity across a restart or replacement |
 | Client-observed controller response | The mock controller's decision returned to the agent during this run | A signed, hardware-backed or independently retained execution record |

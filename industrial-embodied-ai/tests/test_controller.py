@@ -102,6 +102,31 @@ class IndependentSafetyControllerTests(unittest.TestCase):
                 self.request(snapshot["state_token"], target="loading-dock")
             )
 
+    def test_safe_motion_is_not_proof_of_authorization(self) -> None:
+        """An individually safe motion is not, by itself, a trusted one.
+
+        The controller accepts a motion purely on its physical safety
+        envelope: a fresh state token, an approved zone, an in-limit speed and
+        no human present. It has no field for workflow, declared purpose or
+        agent identity, so it cannot tell an in-scope motion from an
+        out-of-scope one. Catching the out-of-scope case is the trust layer's
+        job (the workflow-scoped Cedar policy in policy/allow.cedar), not the
+        safety controller's. This test pins the controller side of that
+        boundary: a safe motion is accepted, and the accept decision carries
+        no authorization claim.
+        """
+        snapshot = self.controller.read_safety_state()
+        accepted = self.controller.request_motion(
+            self.request(snapshot["state_token"])
+        )
+        self.assertEqual(accepted["controller_decision"], "accepted")
+        self.assertEqual(accepted["execution_status"], "completed")
+        # The accept result says nothing about scope, declared purpose or which
+        # agent issued the request. None of these are inputs the controller can
+        # see, which is exactly why physical safety cannot stand in for trust.
+        for authorization_field in ("workflow_id", "agent_id", "declared_scope"):
+            self.assertNotIn(authorization_field, accepted)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -90,6 +90,8 @@ def _request_motion(
     request_id: int,
     snapshot: dict[str, Any],
     motion_id: str,
+    *,
+    workflow_id: str = WORKFLOW_ID,
 ) -> dict[str, Any]:
     return call_tool(
         client,
@@ -102,6 +104,7 @@ def _request_motion(
             "safety_state_token": snapshot["state_token"],
         },
         request_id,
+        workflow_id=workflow_id,
     )
 
 
@@ -169,15 +172,39 @@ def run(
 ) -> None:
     session_id: str | None = None
     with httpx.Client(headers=_headers()) as client:
-        print("SUCCESS")
+        print("SCOPE DENY")
+        # The same in-envelope motion as the authorized path below (an approved
+        # zone, an in-limit speed, a fresh valid safety token), requested under
+        # an undeclared workflow. cMCP denies it on scope before the controller
+        # is consulted, so the safety token is never even checked. The only
+        # difference from the authorized path is the workflow scope, not the
+        # motion or its physical safety.
         state = _read_state(client, gateway, 1)
         session_id = state["session_id"]
-        success = _request_motion(
+        denied = _request_motion(
             client,
             gateway,
             2,
             state["payload"],
             "move-0001",
+            workflow_id="unapproved-diagnostics",
+        )
+        if denied["ok"] or denied["status_code"] != 403:
+            raise RuntimeError("Out-of-scope motion was not denied by cMCP")
+        print("  cMCP policy: denied (out of declared scope)")
+        print("  controller: not consulted")
+        print()
+
+        print("SUCCESS")
+        # The identical motion, now under the declared workflow. cMCP authorizes
+        # it and the independent controller accepts and completes it.
+        state = _read_state(client, gateway, 3)
+        success = _request_motion(
+            client,
+            gateway,
+            4,
+            state["payload"],
+            "move-0002",
         )
         if not success["ok"]:
             raise RuntimeError(f"Success path failed: {success['error']}")
@@ -191,32 +218,12 @@ def run(
         print(f"  execution: {success['payload']['execution_status']}")
         print()
 
-        print("POLICY DENY")
-        denied = call_tool(
-            client,
-            gateway,
-            "robot.request_motion",
-            {
-                "motion_id": "move-0002",
-                "target": "transfer-station-b",
-                "max_speed_mps": 0.2,
-                "safety_state_token": "not-forwarded",
-            },
-            3,
-            workflow_id="unapproved-diagnostics",
-        )
-        if denied["ok"] or denied["status_code"] != 403:
-            raise RuntimeError("Unapproved workflow was not denied by cMCP")
-        print("  cMCP policy: denied")
-        print("  controller: not invoked")
-        print()
-
         print("SAFETY REJECT")
-        state = _read_state(client, gateway, 4)
+        state = _read_state(client, gateway, 5)
         rejected = _request_motion(
             client,
             gateway,
-            5,
+            6,
             state["payload"],
             "move-0003",
         )

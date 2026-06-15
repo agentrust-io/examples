@@ -19,11 +19,13 @@ to produce durable evidence:
 
 1. **Allowed and completed:** cMCP authorizes the declared workflow, then the
    independent controller accepts and completes the simulated motion.
-2. **Scope denied:** the agent requests a motion whose physical parameters sit
-   inside the safety envelope (an approved zone, an in-limit speed), but under
-   an undeclared workflow. cMCP denies it on scope before the controller is
-   consulted. Physical safety was never the question: the trust layer withholds
-   the action because it falls outside the agent's declared purpose.
+2. **Scope denied, the same motion out of scope:** the agent requests the same
+   in-envelope motion as the authorized path (the same approved zone and
+   in-limit speed, a fresh valid safety token) but under an undeclared workflow.
+   cMCP denies it on scope before the controller is consulted, so the safety
+   token is never checked. The only difference from the authorized path is the
+   workflow scope, not the motion or its safety: the trust layer withholds the
+   action because it is outside the agent's declared purpose.
 3. **Safety rejected:** cMCP authorizes the declared workflow, but the
    controller rejects motion after its current state reports a person in the
    safeguarded area.
@@ -162,14 +164,14 @@ python agent/material_movement_agent.py
 Expected summary:
 
 ```text
+SCOPE DENY
+  cMCP policy: denied (out of declared scope)
+  controller: not consulted
+
 SUCCESS
   cMCP policy: authorized
   controller: accepted
   execution: completed
-
-POLICY DENY
-  cMCP policy: denied
-  controller: not invoked
 
 SAFETY REJECT
   cMCP policy: authorized

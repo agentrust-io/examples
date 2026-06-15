@@ -2,8 +2,8 @@
   "cmcp_version": "1.0",
   "trace": {
     "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
-    "iat": 1781217660,
-    "subject": "spiffe://cmcp.gateway/session/fdbdd187-b276-4c71-8e08-50f839d13bd1",
+    "iat": 1781417861,
+    "subject": "spiffe://cmcp.gateway/session/8fe66a2a-836b-4cff-9d05-7518d7f6f464",
     "runtime": {
       "platform": "software-only",
       "measurement": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -16,30 +16,30 @@
     },
     "data_class": "confidential",
     "tool_transcript": {
-      "hash": "sha256:278f15cce18a1fcb6a22c121facdab23060c700f7cff55ea622ecc8701c9ed7c",
-      "call_count": 5
+      "hash": "sha256:9cb9d91fb224e7020cd24830651b63524f6fbb69a6539d389cfc315ff21d38aa",
+      "call_count": 6
     },
     "cnf": {
       "jwk": {
         "kty": "OKP",
         "crv": "Ed25519",
-        "x": "ebBLjGSAJYOTs9npzclQLGqGwZw_2fnG5YZ-Sbc0l54",
-        "kid": "cmcp-79b04b8c"
+        "x": "5L_3-8KHdhLKTycgp-WXB85OyEiRGLtoq0CcCzvzNg8",
+        "kid": "cmcp-e4bff7fb"
       }
     }
   },
   "gateway": {
-    "session_id": "fdbdd187-b276-4c71-8e08-50f839d13bd1",
+    "session_id": "8fe66a2a-836b-4cff-9d05-7518d7f6f464",
     "gateway_version": "0.1.0",
     "sequence_number": 1,
     "audit_chain": {
-      "root": "fd9e4d49b299f3088024a69ed1fc1e3d288593c62186ab4e1d8cb152ef226d61",
-      "tip": "278f15cce18a1fcb6a22c121facdab23060c700f7cff55ea622ecc8701c9ed7c",
-      "length": 7
+      "root": "321d0076a1a987074def0fb6603198ec3291a9970feff5bc404918bb5557f7cb",
+      "tip": "9cb9d91fb224e7020cd24830651b63524f6fbb69a6539d389cfc315ff21d38aa",
+      "length": 8
     },
     "call_summary": {
-      "tool_calls_total": 5,
-      "tool_calls_allowed": 4,
+      "tool_calls_total": 6,
+      "tool_calls_allowed": 5,
       "tool_calls_denied": 1,
       "tool_calls_faulted": 0,
       "tools_invoked": [
@@ -59,12 +59,12 @@
       "hash": "sha256:792c86ff8152fa9713d52584c084611eb4929fa5ebf3ec8271dd21f0e0aa7eeb",
       "drift_detected": false
     },
-    "attestation_generated_at": "2026-06-11T22:40:55.264023+00:00",
+    "attestation_generated_at": "2026-06-14T06:17:40.551552+00:00",
     "attestation_validity_seconds": 86400,
     "attestation_stale": false,
     "catalog_exceptions": [],
     "call_log_summary": {
-      "total_calls": 5,
+      "total_calls": 6,
       "tools_called": [
         "cell.read_safety_state",
         "robot.request_motion"
@@ -72,5 +72,5 @@
       "suspicious_sequences_detected": 0
     }
   },
-  "signature": "i3w2GxrsrGR9pHwO-VLeopxG9WTQTCVpy212-alhZB7bI8jxcH9mpW-AcKaKAu_TQTuGr-50IJo4gGitIKG6Dw"
+  "signature": "ss46cb_B7LzyqkHH20-76kJBMfz0qqf5CYUoKOvO04m0TwsVf-G4251PAmyJgATZ6cDiv3ZwqpOq-tXu5gNrCg"
 }

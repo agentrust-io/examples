@@ -1,4 +1,4 @@
 agentrust-trace @ git+https://github.com/agentrust-io/trace-spec.git@ae152e8baf6ba7c7443cdf73fb5d9ef1660526c0
-cmcp-runtime @ git+https://github.com/agentrust-io/cmcp.git@3a7f49fea5f0c97500ffe0c3c49ec2ff68d09555
+cmcp-runtime @ git+https://github.com/carloshvp/cmcp.git@29ef0379882a4d79505ffeeaf066498c43f5c35e
 cedarpy==4.8.4
 httpx>=0.27,<1

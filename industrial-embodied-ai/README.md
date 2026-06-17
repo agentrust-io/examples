@@ -8,6 +8,9 @@ The example also demonstrates evidence continuity: after the governed session
 closes, its saved TRACE Trust Record and audit bundle remain verifiable after
 the agent, cMCP Runtime and mock controller stop. This is continuity of
 evidence, not continuity of agent memory, reputation or process identity.
+Live runs also attach a controller-signed `external_execution_evidence`
+receipt to each motion decision when run with a cMCP Runtime that supports
+issue #301 external evidence binding.
 
 The scenario is synthetic. It uses no robot hardware, vendor SDK, production
 endpoint, or proprietary industrial data.
@@ -29,7 +32,10 @@ to produce durable evidence:
 3. **Safety rejected:** cMCP authorizes the declared workflow, but the
    controller rejects motion after its current state reports a person in the
    safeguarded area.
-4. **Closed-session evidence:** cMCP signs a TRACE Trust Record and audit
+4. **Controller-signed execution receipts:** each motion decision includes a
+   mock controller receipt that cMCP can bind to the audit entry for that
+   `call_id`.
+5. **Closed-session evidence:** cMCP signs a TRACE Trust Record and audit
    bundle that can be verified from the saved files without a running agent,
    runtime or controller.
 
@@ -72,6 +78,7 @@ individually safe motion is not, by itself, a trusted one.
  | - validates fresh state token |
  | - rechecks current cell state |
  | - enforces speed and zone     |
+ | - signs motion decisions      |
  +---------------+---------------+
                  |
                  | accepted command
@@ -94,6 +101,7 @@ rather than a native runtime binding.
 | Governed tool access | cMCP intercepts each MCP request and evaluates the active Cedar policy before forwarding |
 | Scope over safety | cMCP denies an in-envelope motion that falls outside the declared workflow, a check the safety controller does not perform |
 | Physical authority | The independent controller rechecks current state and remains authoritative for simulated execution |
+| External controller evidence | Motion outcomes can include controller-signed receipts bound to the cMCP audit call id |
 | Durable session evidence | TRACE and the signed audit bundle bind the cMCP session, policy, catalog and tool-call transcript |
 
 The example composes these boundaries without claiming that the developer
@@ -128,9 +136,9 @@ Prerequisites:
 - Python 3.11 or newer
 - Git
 
-The project is a developer preview. `requirements.txt` pins the cMCP and TRACE
-commits used for this reproducible example until the summit release stack is
-available from PyPI.
+The project is a developer preview. `requirements.txt` pins the TRACE commit
+and a cMCP external-evidence PR commit used for this reproducible example
+until the summit release stack is available from PyPI.
 
 ```bash
 cd industrial-embodied-ai
@@ -182,6 +190,7 @@ SAFETY REJECT
 TRACE VERIFICATION
   schema/signature/hashes/freshness: verified
   audit bundle: verified
+  controller receipts: verified (2)
   runtime platform: software-only
   hardware attestation: not verified (development mode)
 ```
@@ -248,6 +257,7 @@ The validator checks:
 - Agent Manifest artifact bindings and Ed25519 signature
 - runtime-issued TRACE schema and signature
 - signed audit-bundle integrity and binding to the TRACE record
+- controller execution receipts when present in the audit bundle
 
 ## Evidence boundaries
 
@@ -256,15 +266,15 @@ The validator checks:
 | Agent Manifest | The signed agent identity declaration and hashes of the approved prompt, policy and tools | That cMCP loaded the manifest or bound its agent identity to the runtime session |
 | cMCP decision | The active policy authorized or denied a cataloged tool request | That an authorized physical request was safe |
 | Controller accept | The motion was inside the safety envelope for this run | That the action was authorized, in declared scope, or issued by the reviewed agent |
+| Controller execution receipt | The mock controller signed a specific accepted or rejected motion decision and linked it to a cMCP audit `call_id` | Hardware-backed execution, physical completion, or functional-safety compliance |
 | TRACE Trust Record | cMCP session identity, runtime, policy hash, catalog hash and tool-call transcript integrity | The Agent Manifest identity, controller acceptance, physical completion or functional-safety compliance |
 | Saved TRACE and audit files | The closed session can be checked after the processes stop | Continuity of agent memory, reputation or logical identity across a restart or replacement |
-| Client-observed controller response | The mock controller's decision returned to the agent during this run | A signed, hardware-backed or independently retained execution record |
 
-The current cMCP audit bundle records request hashes and authorization
-decisions, but does not populate a response hash for the controller outcome.
-The example therefore does not claim that TRACE proves controller acceptance
-or physical completion. Binding independent controller evidence is a
-follow-up design question, not something this example silently invents.
+When run against a cMCP build with issue #301 support, the audit bundle records
+the response hash and can bind the mock controller's signed receipt for each
+motion decision. The receipt proves the mock controller signed a decision for
+that call id. It does not claim that TRACE proves physical completion,
+hardware-backed execution, or compliance with industrial safety standards.
 
 The committed TRACE subject identifies the cMCP session, while the Agent
 Manifest declares a separate agent identity. The validator confirms that the
@@ -280,6 +290,7 @@ agent.
 | `agent-manifest.json` | Signed development declaration binding the prompt, policy bundle and tool catalog |
 | `manifest-public-key.json` | Public verification key for the Agent Manifest |
 | `artifact-hashes.json` | Approved cMCP and Agent Manifest artifact hashes |
+| `controller-receipt-public-key.json` | Development-only public key for verifying mock controller receipts |
 | `catalog.json` | Attested definitions for safety-state and motion-request tools |
 | `cmcp-config.yaml` | cMCP configuration shared by development and hardware runs |
 | `policy/allow.cedar` | Explicit workflow-scoped permits with default deny |

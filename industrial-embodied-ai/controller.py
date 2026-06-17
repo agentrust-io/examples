@@ -180,6 +180,11 @@ class IndependentSafetyController:
         """base64url of the raw Ed25519 receipt-signing public key."""
         return _b64url_encode(self._receipt_pub)
 
+    @property
+    def receipt_public_key_bytes(self) -> bytes:
+        """Raw Ed25519 receipt-signing public key bytes for cMCP verification."""
+        return self._receipt_pub
+
     def sign_execution_receipt(
         self, *, call_id: str, decision: dict[str, Any]
     ) -> dict[str, str]:
@@ -194,9 +199,14 @@ class IndependentSafetyController:
         receipt = {
             "issuer": CONTROLLER_ID,
             "issuer_key_id": self.receipt_key_id,
-            "evidence_hash": "sha256:" + hashlib.sha256(canonical_bytes(decision)).hexdigest(),
+            "evidence_hash": (
+                "sha256:"
+                + hashlib.sha256(canonical_bytes(decision)).hexdigest()
+            ),
             "evidence_type": "controller-execution-receipt/v1",
             "linked_call_id": call_id,
         }
-        receipt["signature"] = _b64url_encode(self._receipt_key.sign(canonical_bytes(receipt)))
+        receipt["signature"] = _b64url_encode(
+            self._receipt_key.sign(canonical_bytes(receipt))
+        )
         return receipt

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,18 @@ from cmcp_verify import ApprovedHashes, verify_audit_bundle, verify_trace_claim
 EXAMPLE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_GATEWAY = "http://localhost:8443"
 WORKFLOW_ID = "industrial-material-movement"
+
+
+def _b64url_decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _external_evidence_keys() -> dict[str, bytes]:
+    key_doc = json.loads(
+        (EXAMPLE_DIR / "controller-receipt-public-key.json").read_text()
+    )
+    key_id = key_doc["key_id"]
+    return {key_id: _b64url_decode(key_doc["public_key_base64url"])}
 
 
 def _headers() -> dict[str, str]:
@@ -127,7 +140,11 @@ def _verify_evidence(
             tool_catalog_hash=expected["cmcp_catalog_hash"],
         ),
     )
-    bundle_result = verify_audit_bundle(bundle, claim)
+    bundle_result = verify_audit_bundle(
+        bundle,
+        claim,
+        external_evidence_keys=_external_evidence_keys(),
+    )
     required = {
         "schema",
         "signature",
@@ -139,8 +156,18 @@ def _verify_evidence(
     missing = sorted(required - set(result.verified_fields))
 
     print("TRACE VERIFICATION")
-    print(f"  schema/signature/hashes/freshness: {'verified' if not missing else 'failed'}")
+    schema_status = "verified" if not missing else "failed"
+    print(f"  schema/signature/hashes/freshness: {schema_status}")
     print(f"  audit bundle: {'verified' if bundle_result.verified else 'failed'}")
+    receipt_count = sum(
+        1
+        for entry in bundle.get("entries", [])
+        if entry.get("external_execution_evidence")
+    )
+    if receipt_count:
+        print(f"  controller receipts: verified ({receipt_count})")
+    else:
+        print("  controller receipts: not present in this bundle")
     platform = claim.get("trace", {}).get("runtime", {}).get("platform", "unknown")
     print(f"  runtime platform: {platform}")
     if platform == "software-only":
@@ -149,7 +176,8 @@ def _verify_evidence(
             missing.append("hardware_attestation")
     else:
         hardware_verified = "hardware_attestation" in result.verified_fields
-        print(f"  hardware attestation: {'verified' if hardware_verified else 'failed'}")
+        hardware_status = "verified" if hardware_verified else "failed"
+        print(f"  hardware attestation: {hardware_status}")
         if require_hardware and not hardware_verified:
             missing.append("hardware_attestation")
 

@@ -34,6 +34,14 @@ def b64url_decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
+def external_evidence_keys() -> dict[str, bytes]:
+    key_doc = json.loads(
+        (BASE / "controller-receipt-public-key.json").read_text()
+    )
+    key_id = key_doc["key_id"]
+    return {key_id: b64url_decode(key_doc["public_key_base64url"])}
+
+
 def compute_policy_bundle_hash() -> str:
     policy_dir = BASE / "policy"
     manifest = json.loads((policy_dir / "manifest.json").read_text())
@@ -160,12 +168,25 @@ def main() -> None:
     assert required <= set(verification.verified_fields)
     assert claim["trace"]["runtime"]["platform"] == "software-only"
 
-    bundle_verification = verify_audit_bundle(audit_bundle, claim)
+    bundle_verification = verify_audit_bundle(
+        audit_bundle,
+        claim,
+        external_evidence_keys=external_evidence_keys(),
+    )
     assert bundle_verification.verified, bundle_verification.failures
+    receipt_count = sum(
+        1
+        for entry in audit_bundle.get("entries", [])
+        if entry.get("external_execution_evidence")
+    )
 
     print("Configuration and artifact hashes: valid")
     print("Agent Manifest signature: valid")
     print("Runtime-issued TRACE signature and audit bundle: valid")
+    if receipt_count:
+        print(f"Controller execution receipts: valid ({receipt_count})")
+    else:
+        print("Controller execution receipts: not present in committed fixture")
     print("Hardware attestation: not present in committed development fixture")
 
 

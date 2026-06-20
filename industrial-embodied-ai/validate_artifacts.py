@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from agent_manifest import canonicalize
 from cmcp_runtime.config import load_config
 from cmcp_verify import ApprovedHashes, verify_audit_bundle, verify_trace_claim
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -18,12 +19,7 @@ BASE = Path(__file__).resolve().parent
 
 
 def canonical_bytes(value: Any) -> bytes:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    ).encode()
+    return canonicalize(value)
 
 
 def hash_bytes(value: bytes) -> str:

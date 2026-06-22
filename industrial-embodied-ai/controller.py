@@ -14,6 +14,9 @@ import secrets
 import time
 from typing import Any, Callable
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
 
 CONTROLLER_ID = "spiffe://factory.example/controller/robot-cell-7"
 MAX_STATE_AGE_MS = 5_000
@@ -61,6 +64,15 @@ class IndependentSafetyController:
         self._token_key = token_key or secrets.token_bytes(32)
         self._sequence = 0
         self._consumed_sequences: set[int] = set()
+        # #301: deterministic development-only Ed25519 key the controller uses to
+        # sign execution receipts (external_execution_evidence). Fixed seed so the
+        # public key and any committed evidence are reproducible. Not for production.
+        self._receipt_key = Ed25519PrivateKey.from_private_bytes(
+            hashlib.sha256(b"development-only-mock-controller-receipt-key").digest()
+        )
+        self._receipt_pub = self._receipt_key.public_key().public_bytes(
+            encoding=Encoding.Raw, format=PublicFormat.Raw
+        )
         self._state = {
             "operating_mode": "automatic",
             "emergency_stop_active": False,
@@ -157,3 +169,44 @@ class IndependentSafetyController:
             "controller_decision": "accepted",
             "execution_status": "completed",
         }
+
+    @property
+    def receipt_key_id(self) -> str:
+        """Stable id for the receipt-signing public key (sha256 hex of the key)."""
+        return hashlib.sha256(self._receipt_pub).hexdigest()
+
+    @property
+    def receipt_public_key_b64(self) -> str:
+        """base64url of the raw Ed25519 receipt-signing public key."""
+        return _b64url_encode(self._receipt_pub)
+
+    @property
+    def receipt_public_key_bytes(self) -> bytes:
+        """Raw Ed25519 receipt-signing public key bytes for cMCP verification."""
+        return self._receipt_pub
+
+    def sign_execution_receipt(
+        self, *, call_id: str, decision: dict[str, Any]
+    ) -> dict[str, str]:
+        """Return a controller-signed execution receipt for a decision.
+
+        Matches the cMCP external_execution_evidence format (issue #301): the
+        signature is Ed25519 over the canonical receipt with the signature field
+        absent, and a verifier checks linked_call_id against the audit entry
+        call_id. This attests what the independent controller decided. It is not
+        a claim that a physical action was safe, accepted, or certified.
+        """
+        receipt = {
+            "issuer": CONTROLLER_ID,
+            "issuer_key_id": self.receipt_key_id,
+            "evidence_hash": (
+                "sha256:"
+                + hashlib.sha256(canonical_bytes(decision)).hexdigest()
+            ),
+            "evidence_type": "controller-execution-receipt/v1",
+            "linked_call_id": call_id,
+        }
+        receipt["signature"] = _b64url_encode(
+            self._receipt_key.sign(canonical_bytes(receipt))
+        )
+        return receipt

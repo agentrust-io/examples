@@ -57,6 +57,14 @@ def _request_motion(arguments: dict[str, Any]) -> dict[str, Any]:
         return result
 
 
+def _with_execution_receipt(result: dict[str, Any], call_id: object) -> dict[str, Any]:
+    receipt = controller.sign_execution_receipt(
+        call_id=str(call_id),
+        decision=result,
+    )
+    return {**result, "external_execution_evidence": receipt}
+
+
 TOOLS = {
     "cell.read_safety_state": _read_safety_state,
     "robot.request_motion": _request_motion,
@@ -94,6 +102,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         result = handler(params.get("arguments", {}))
+        if tool_name == "robot.request_motion":
+            result = _with_execution_receipt(result, request.get("id"))
         self._reply(
             200,
             {

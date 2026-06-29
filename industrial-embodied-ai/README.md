@@ -283,7 +283,7 @@ cryptographically bind that manifest identity to the runtime session. It also
 does not establish that a restarted or replacement process is the same logical
 agent.
 
-## AgentTrust artifacts
+## AgenTrust artifacts
 
 | File | Purpose |
 |---|---|

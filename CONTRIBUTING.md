@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in contributing to AgentTrust examples.
+Thank you for your interest in contributing to AgenTrust examples.
 
 ## Scope: what belongs here
 

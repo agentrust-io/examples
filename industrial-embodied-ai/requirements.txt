@@ -1,4 +1,4 @@
-agentrust-trace>=0.2.0
+agentrust-trace>=0.3.0
 agent-manifest>=0.1.1
 cmcp-runtime>=0.2.1
 cedarpy==4.8.4

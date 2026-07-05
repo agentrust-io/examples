@@ -1,5 +1,5 @@
 agentrust-trace>=0.3.0
 agent-manifest>=0.1.1
 cmcp-runtime>=0.3.0
-cedarpy==4.8.4
+cedarpy==4.8.6
 httpx>=0.27,<1

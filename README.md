@@ -11,6 +11,7 @@ End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working 
 
 | Example | What it shows | Platform | Compliance |
 |---|---|---|---|
+| `embodied-action-receipts/` | Fixture-style offline verification for embodied action receipts: accepted chain, missing receipt, signature mismatch and valid controller rejection | Software-only fixtures | TRACE action-receipt evidence boundary |
 | `financial-services/` | Credit risk agent: MiFID II escalation deny above EUR 500k with structured policy advice | SEV-SNP / TDX | EU AI Act Art. 9/12, MiFID II Art. 25, DORA Art. 9 |
 | `healthcare/` | Clinical decision agent: EU AI Act Art. 14 HITL deny on high-risk treatment plans | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
 | `industrial-embodied-ai/` | Material-movement agent with cMCP authorization, an independent safety-controller boundary and offline-verifiable closed-session evidence | TEE / software-only development mode | OT security and industrial robot safety references |

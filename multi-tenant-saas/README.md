@@ -1,27 +1,35 @@
 # multi-tenant-saas: Per-Tenant Cedar Policy Isolation
 
-End-to-end demo of a SaaS platform serving tenants with different compliance postures, each enforced by a separate Cedar policy bundle - and different *enforcement modes* - in the cMCP Runtime.
+PeopleGraph is a fictional HR / people-analytics SaaS. It serves two tenants on the same platform and the same tool catalog, but each tenant has its own data processing agreement, its own Cedar policy bundle, and its own enforcement mode in the cMCP Runtime.
 
-The same three tool calls produce different outcomes per tenant:
-
-| Tool | acme-corp (advisory) | globex-financial (enforcing) |
+| | `metzler-eu` | `summit-us` |
 |---|---|---|
-| `saas.analytics_query` | allow | allow |
-| `saas.user_data_export` | advisory_deny (logged, not blocked) | deny |
-| `saas.config_update` | allow | deny |
+| Employer | Metzler Retail GmbH (EU) | Summit Brands Inc (US) |
+| Contract | EU data residency, declared legal basis, no special-category processing | US regions allowed, no legal-basis requirement |
+| Enforcement | `enforcing` (violations block) | `advisory` (violations logged, not blocked) |
+| Policy version | `metzler-eu-v1.0` | `summit-us-v1.0` |
+
+The **same four tool calls** produce different outcomes per tenant:
+
+| Call | `metzler-eu` (enforcing) | `summit-us` (advisory) |
+|---|---|---|
+| `people.headcount_analytics` | allow | allow |
+| `people.employee_record_lookup` (with legal basis) | allow | allow |
+| `people.data_export` to `us-east-1` | **deny** (GDPR data residency) | allow |
+| `people.employee_record_lookup` special-category | **deny** (GDPR Art. 9) | advisory_deny (logged) |
 
 ---
 
 ## What the demo shows
 
 **1. Policy-as-isolation at the tool boundary**
-Each tenant has its own Cedar bundle under `tenants/<name>/policy/` and its own runtime config pointing at it. The `trace.policy.version` field in each TRACE record identifies exactly which tenant policy was enforced (`acme-corp-v1.0` vs `globex-financial-v3.2`).
+Each tenant has its own Cedar bundle under `tenants/<name>/policy/` and its own runtime config pointing at it. The `trace.policy.version` field in each TRACE record identifies exactly which tenant policy was enforced.
 
-**2. Progressive compliance posture via enforcement mode**
-Acme Corp runs `enforcement_mode: advisory`: a matched forbid is logged in the audit chain and surfaced as `would_have_denied` + advice in the response metadata, but the call proceeds. Globex Financial runs `enforcing` with no catch-all permit - Cedar's default-deny blocks anything not explicitly permitted.
+**2. The tenants differ by real contract terms, not just a flag**
+Metzler's EU processing agreement is encoded as three GDPR guardrails: a declared legal basis for personal-data processing (Art. 6), EEA data residency (Art. 44-45), and no special-category processing through the agent (Art. 9). Summit's US agreement carries none of those; it only flags special-category access for review. The bundles genuinely differ.
 
-**3. Structured advice on denies**
-Both tenants' forbid rules carry `@annotation` metadata (GDPR article, required workflow) that the runtime returns to the caller - in `error.data.advice` for hard denies, in `_cmcp.advice` for advisory ones.
+**3. Progressive posture via enforcement mode**
+Metzler runs `enforcing`: a matched forbid blocks the call. Summit runs `advisory`: the same match is recorded in the audit chain and surfaced as `would_have_denied` + advice in the response metadata, but the call proceeds. The advisory record still counts the matched forbid in `gateway.call_summary.tool_calls_denied`, so an auditor sees what *would* have been blocked.
 
 ---
 
@@ -29,20 +37,33 @@ Both tenants' forbid rules carry `@annotation` metadata (GDPR article, required 
 
 ```
 multi-tenant-saas/
-  cmcp-config-acme-corp.yaml            advisory mode -> tenants/acme-corp/policy
-  cmcp-config-globex-financial.yaml     enforcing mode -> tenants/globex-financial/policy
-  catalog.json                          shared three-tool catalog
+  cmcp-config-metzler-eu.yaml     enforcing -> tenants/metzler-eu/policy
+  cmcp-config-summit-us.yaml      advisory  -> tenants/summit-us/policy
+  catalog.json                    shared four-tool catalog
+  people_directory.py             employee fixtures + tool logic (one source of truth)
   tenants/
-    acme-corp/policy/                   acme-corp-v1.0 (permissive)
-    globex-financial/policy/            globex-financial-v3.2 (default-deny)
-  server/
-    mock_mcp_server.py                  mock upstream MCP server (stdlib only)
-  agent/
-    saas_agent.py                       demo agent (run this)
+    metzler-eu/policy/            metzler-eu-v1.0 (GDPR guardrails, enforced)
+    summit-us/policy/             summit-us-v1.0 (permissive, advisory)
+  server/mock_mcp_server.py       mock PeopleGraph MCP server (stdlib only)
+  agent/saas_agent.py             demo agent (run this)
+  tests/test_people_directory.py  unit tests
   trace-output/
-    acme-corp-example.json              real captured TRACE record (advisory)
-    globex-financial-example.json       real captured TRACE record (enforcing)
+    metzler-eu-example.json       real captured TRACE record (enforcing)
+    summit-us-example.json        real captured TRACE record (advisory)
 ```
+
+---
+
+## The catalog
+
+| Tool | compliance_domain | sensitivity_level |
+|---|---|---|
+| `people.headcount_analytics` | internal | public |
+| `people.employee_record_lookup` | pii | confidential |
+| `people.data_export` | pii | confidential |
+| `people.config_update` | internal | public |
+
+`people.data_export` and `people.employee_record_lookup` accept a `legal_basis` argument, `data_export` a `destination_region`, and the lookup an `include_special_category` flag. The Cedar guardrails act on those arguments.
 
 ---
 
@@ -61,94 +82,99 @@ cd multi-tenant-saas
 python server/mock_mcp_server.py
 ```
 
-**Terminal 2 - runtime with Acme Corp's policy** (run from inside `multi-tenant-saas/`):
+**Terminal 2 - runtime with Metzler's (EU) policy** (run from inside `multi-tenant-saas/`):
 
 ```bash
 cd multi-tenant-saas
-CMCP_DEV_MODE=1 cmcp start --config cmcp-config-acme-corp.yaml
+CMCP_DEV_MODE=1 cmcp start --config cmcp-config-metzler-eu.yaml
 ```
 
 **Terminal 3 - agent:**
 
 ```bash
 cd examples
-python multi-tenant-saas/agent/saas_agent.py --tenant acme-corp
+python multi-tenant-saas/agent/saas_agent.py --tenant metzler-eu
 ```
 
 ```
-[1/3] Calling saas.analytics_query ...
+[3/4] people.data_export (scope=engineering, destination_region=us-east-1)
+      -> decision: deny (POLICY_DENY)
+         advice from policy:
+           id: data-residency-eea
+           reason: eea-data-residency-required
+           regulation: gdpr-art-44
+[4/4] people.employee_record_lookup (employee_id=EMP-DE-4821, include_special_category=True)
+      -> decision: deny (POLICY_DENY)
+         advice from policy:
+           id: special-category-block
+           reason: special-category-processing-prohibited
+           regulation: gdpr-art-9
+```
+
+**Switch tenants** - stop the runtime (Ctrl-C) and restart with Summit's (US) config:
+
+```bash
+CMCP_DEV_MODE=1 cmcp start --config cmcp-config-summit-us.yaml
+python multi-tenant-saas/agent/saas_agent.py --tenant summit-us
+```
+
+```
+[3/4] people.data_export (scope=engineering, destination_region=us-east-1)
       -> decision: allow
-[2/3] Calling saas.user_data_export ...
+[4/4] people.employee_record_lookup (employee_id=EMP-DE-4821, include_special_category=True)
       -> decision: advisory_deny (logged, not blocked)
          advice from policy:
-           id: gdpr-justification-missing
-           reason: gdpr-justification-missing
-           regulation: gdpr-art-6
-[3/3] Calling saas.config_update ...
-      -> decision: allow
+           id: special-category-review
+           reason: special-category-access-flagged-for-review
+           regulation: us-state-privacy
 ```
 
-**Switch tenants** - stop the runtime (Ctrl-C) and restart with Globex Financial's config:
-
-```bash
-CMCP_DEV_MODE=1 cmcp start --config cmcp-config-globex-financial.yaml
-```
-
-```bash
-python multi-tenant-saas/agent/saas_agent.py --tenant globex-financial
-```
-
-```
-[1/3] Calling saas.analytics_query ...
-      -> decision: allow
-[2/3] Calling saas.user_data_export ...
-      -> decision: deny (POLICY_DENY)
-         advice from policy:
-           id: export-requires-compliance-workflow
-           reason: export-requires-data-compliance-workflow
-           regulation: gdpr-art-6
-[3/3] Calling saas.config_update ...
-      -> decision: deny (POLICY_DENY)
-         advice from policy:
-           id: config-update-requires-admin-workflow
-           reason: config-update-requires-admin-workflow
-```
-
-Each run ends by closing the session and printing the signed TRACE Trust Record. Compare `trace.policy.version` and `gateway.call_summary.tool_calls_denied` across the two captured examples in `trace-output/`.
+Each run ends by closing the session and printing the signed TRACE Trust Record. Compare `trace.policy.version`, `trace.policy.enforcement_mode` and `gateway.call_summary.tool_calls_denied` across the two captured examples in `trace-output/`.
 
 ---
 
 ## How the policies differ
 
-**Acme Corp** (`tenants/acme-corp/policy/allow.cedar`): a catch-all permit plus one annotated forbid - user data export without a `gdpr_justification` argument. Under advisory mode this logs and flags but does not block.
-
-**Globex Financial** (`tenants/globex-financial/policy/allow.cedar`): no catch-all. Explicit permits per tool, gated on the workflow the agent declares via `_cmcp.workflow_id`:
+**Metzler (`tenants/metzler-eu/policy/allow.cedar`, enforcing):** aggregate analytics are open; individual lookups and exports are gated on the `people-analytics` workflow; and three GDPR forbids block the call when a control fails:
 
 ```cedar
-permit (
+@id("data-residency-eea")
+@reason("eea-data-residency-required")
+@regulation("gdpr-art-44")
+forbid (
   principal,
-  action == Action::"Saas.userDataExport",
+  action == Action::"People.dataExport",
   resource
 ) when {
-  context has workflow_id &&
-  context.workflow_id == "data-compliance-workflow"
+  context.arguments has destination_region &&
+  !(["eu-central-1", "eu-west-1", "eu-north-1", "eu-west-3"].contains(context.arguments.destination_region))
 };
 ```
 
-The demo agent runs as `analytics-workflow`, so exports and config updates deny. Annotated forbid rules make those denies carry structured advice instead of being silent default-denies.
+**Summit (`tenants/summit-us/policy/allow.cedar`, advisory):** a catch-all permit plus a single forbid that flags special-category access for review. Under advisory mode this logs and surfaces advice but does not block.
+
+Action names follow the cMCP convention: `people.data_export` becomes `Action::"People.dataExport"` (the segment before the dot PascalCase, each underscore segment after it camelCase). Tool arguments are available under `context.arguments`; the `@annotation` values are returned in `error.data.advice` for hard denies and in `_cmcp.advice` for advisory ones.
 
 ---
 
 ## Running both tenants simultaneously
 
-Run two runtimes on different ports (edit `listen_addr` in one config), one per tenant, against the same mock server:
+This is the production topology: one attested runtime instance per tenant isolation boundary, each measuring its own policy bundle hash into its TRACE records. Run two runtimes on different ports (edit `listen_addr` in one config) against the same mock server:
 
 ```bash
-python multi-tenant-saas/agent/saas_agent.py --tenant acme-corp --gateway http://localhost:8443
-python multi-tenant-saas/agent/saas_agent.py --tenant globex-financial --gateway http://localhost:9443
+python multi-tenant-saas/agent/saas_agent.py --tenant metzler-eu --gateway http://localhost:8443
+python multi-tenant-saas/agent/saas_agent.py --tenant summit-us --gateway http://localhost:9443
 ```
 
-This is the production topology: one attested runtime instance per tenant isolation boundary, each measuring its own policy bundle hash into its TRACE records.
+---
+
+## The tests
+
+`tests/test_people_directory.py` checks that headcount output is aggregate-only, that special-category is a request flag rather than emitted data, and that EEA region classification and per-region currency are correct.
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 ---
 

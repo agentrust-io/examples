@@ -15,7 +15,7 @@ End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working 
 | `financial-services/` | Credit risk agent: MiFID II escalation deny above EUR 500k with structured policy advice | SEV-SNP / TDX | EU AI Act Art. 9/12, MiFID II Art. 25, DORA Art. 9 |
 | `healthcare/` | Clinical decision agent: EU AI Act Art. 14 HITL deny on high-risk treatment plans | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
 | `industrial-embodied-ai/` | Material-movement agent with cMCP authorization, an independent safety-controller boundary and offline-verifiable closed-session evidence | TEE / software-only development mode | OT security and industrial robot safety references |
-| `multi-tenant-saas/` | Per-tenant Cedar policy bundles and enforcement modes (advisory vs enforcing) | TDX | GDPR Art. 6, customer contract SLA |
+| `multi-tenant-saas/` | HR SaaS with an EU tenant (enforcing GDPR residency/Art. 9) and a US tenant (advisory) on one catalog | TDX | GDPR Art. 6/9/44, customer DPA |
 | `startup-tpm/` | 15-minute quickstart on any cloud VM with Trusted Launch | TPM 2.0 | Development / staging |
 
 Each example is fully runnable with no external dependencies: it ships a mock upstream MCP server, an agent script, an attested tool catalog, and a Cedar policy bundle, and ends by printing the signed TRACE Trust Record for the session. The `trace-output/` files in each example are captured from real runs.

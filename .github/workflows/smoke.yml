@@ -34,16 +34,16 @@ jobs:
             config: cmcp-config.yaml
             agent: agent/clinical_decision_agent.py
             args: ""
-          - name: multi-tenant-acme-corp
+          - name: multi-tenant-metzler-eu
             dir: multi-tenant-saas
-            config: cmcp-config-acme-corp.yaml
+            config: cmcp-config-metzler-eu.yaml
             agent: agent/saas_agent.py
-            args: "--tenant acme-corp"
-          - name: multi-tenant-globex-financial
+            args: "--tenant metzler-eu"
+          - name: multi-tenant-summit-us
             dir: multi-tenant-saas
-            config: cmcp-config-globex-financial.yaml
+            config: cmcp-config-summit-us.yaml
             agent: agent/saas_agent.py
-            args: "--tenant globex-financial"
+            args: "--tenant summit-us"
     steps:
       - uses: actions/checkout@v7
 

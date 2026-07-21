@@ -91,3 +91,19 @@ jobs:
 
       - name: Verify embodied-action receipt fixtures
         run: python -m unittest discover -s tests -v
+
+  multi-tenant-saas:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: multi-tenant-saas
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Run people directory tests
+        run: python -m unittest discover -s tests -v

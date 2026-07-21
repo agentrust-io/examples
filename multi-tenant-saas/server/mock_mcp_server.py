@@ -1,53 +1,54 @@
 #!/usr/bin/env python3
 """
-Mock SaaS Platform MCP Server for the multi-tenant-saas demo.
+Mock PeopleGraph MCP Server for the multi-tenant-saas demo.
 
-Serves the three catalog tools with canned responses on port 8080.
-Stdlib only -- no dependencies.
+Serves the four catalog tools on port 8080. Tool responses come from
+``people_directory`` so the server, the tests and the agent share one source
+of truth. Stdlib only -- no dependencies.
 
 Usage:
     python multi-tenant-saas/server/mock_mcp_server.py
 """
 
 import json
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+
+EXAMPLE_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(EXAMPLE_DIR))
+
+import people_directory  # noqa: E402
 
 PORT = 8080
 
 
-def _user_data_export(args: dict) -> str:
-    return json.dumps({
-        "user_id": args.get("user_id", ""),
-        "format": args.get("format", "json"),
-        "records_exported": 1342,
-        "export_id": "EXP-2026-00917",
-        "status": "exported",
-    })
+def _headcount_analytics(args: dict) -> str:
+    return json.dumps(people_directory.headcount_analytics(
+        args.get("metric", "attrition"), args.get("period", "2026-Q2")))
 
 
-def _analytics_query(args: dict) -> str:
-    return json.dumps({
-        "metric": args.get("metric", ""),
-        "time_range_days": args.get("time_range_days", 30),
-        "value": 48213,
-        "trend": "+4.2%",
-        "status": "completed",
-    })
+def _employee_record_lookup(args: dict) -> str:
+    return json.dumps(people_directory.employee_record_lookup(
+        args.get("employee_id", people_directory.DEFAULT_EMPLOYEE),
+        bool(args.get("include_special_category", False))))
+
+
+def _data_export(args: dict) -> str:
+    return json.dumps(people_directory.data_export(
+        args.get("scope", "all"), args.get("destination_region", "")))
 
 
 def _config_update(args: dict) -> str:
-    return json.dumps({
-        "key": args.get("key", ""),
-        "value": args.get("value", ""),
-        "previous_value": "30",
-        "status": "updated",
-    })
+    return json.dumps(people_directory.config_update(
+        args.get("key", ""), args.get("value", "")))
 
 
 TOOLS = {
-    "saas.user_data_export": _user_data_export,
-    "saas.analytics_query": _analytics_query,
-    "saas.config_update": _config_update,
+    "people.headcount_analytics": _headcount_analytics,
+    "people.employee_record_lookup": _employee_record_lookup,
+    "people.data_export": _data_export,
+    "people.config_update": _config_update,
 }
 
 
@@ -84,9 +85,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def log_message(self, fmt, *args):
-        print(f"[mock-saas] {fmt % args}")
+        print(f"[mock-peoplegraph] {fmt % args}")
 
 
 if __name__ == "__main__":
-    print(f"Mock SaaS Platform MCP Server listening on :{PORT} (tools: {', '.join(TOOLS)})")
+    print(f"Mock PeopleGraph MCP Server listening on :{PORT} (tools: {', '.join(TOOLS)})")
     HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

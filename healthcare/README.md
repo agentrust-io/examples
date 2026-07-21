@@ -95,7 +95,7 @@ python healthcare/agent/clinical_decision_agent.py --scenario contraindication
 Standard scenario:
 
 ```
-Scenario: standard  |  Patient: P-2024-008471  |  Risk category: standard
+Scenario: standard  |  Patient: [redacted PHI]  |  Risk category: standard
 
 [1/4] ehr.patient_record_lookup ...
       -> decision: allow  active dx: E11.9, I10, E78.5

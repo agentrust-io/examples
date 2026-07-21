@@ -99,7 +99,10 @@ def close_session(client, gateway, session_id):
 def run(gateway, scenario):
     sc = SCENARIOS[scenario]
     print(f"Connecting to cMCP Runtime at {gateway}")
-    print(f"Scenario: {scenario}  |  Patient: {PATIENT_ID}  |  Risk category: {sc['risk']}")
+    # This is a PHI-handling demo, so the patient identifier is deliberately not
+    # written to stdout in clear text; it travels only in the tool arguments and
+    # the signed TRACE record (trace.subject).
+    print(f"Scenario: {scenario}  |  Patient: [redacted PHI]  |  Risk category: {sc['risk']}")
     print()
 
     session_id = None

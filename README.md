@@ -13,7 +13,7 @@ End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working 
 |---|---|---|---|
 | `embodied-action-receipts/` | Fixture-style offline verification for embodied action receipts: accepted chain, missing receipt, signature mismatch and valid controller rejection | Software-only fixtures | TRACE action-receipt evidence boundary |
 | `financial-services/` | Corporate credit risk agent: six-step assessment with CDD, exposure and IFRS 9 guardrails on the write | SEV-SNP / TDX | EU AI Act Art. 9/12, CRR Art. 395, EBA/GL/2020/06, EU AML, DORA Art. 9 |
-| `healthcare/` | Clinical decision agent: EU AI Act Art. 14 HITL deny on high-risk treatment plans | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
+| `healthcare/` | Clinical agent on a coherent ICD-10 patient: drug-interaction check feeds EU AI Act Art. 14 HITL and contraindication denies | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
 | `industrial-embodied-ai/` | Material-movement agent with cMCP authorization, an independent safety-controller boundary and offline-verifiable closed-session evidence | TEE / software-only development mode | OT security and industrial robot safety references |
 | `multi-tenant-saas/` | HR SaaS with an EU tenant (enforcing GDPR residency/Art. 9) and a US tenant (advisory) on one catalog | TDX | GDPR Art. 6/9/44, customer DPA |
 | `startup-tpm/` | 15-minute quickstart on any cloud VM with Trusted Launch | TPM 2.0 | Development / staging |

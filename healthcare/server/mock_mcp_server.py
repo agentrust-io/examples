@@ -2,41 +2,40 @@
 """
 Mock Hospital EHR MCP Server for the healthcare demo.
 
-Serves the three catalog tools with canned responses on port 8080.
-Stdlib only -- no dependencies.
+Serves the four catalog tools on port 8080. Tool responses come from
+``clinical_engine`` so the server, the tests and the agent share one coherent
+patient. Stdlib only -- no dependencies.
 
 Usage:
     python healthcare/server/mock_mcp_server.py
 """
 
 import json
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+
+EXAMPLE_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(EXAMPLE_DIR))
+
+import clinical_engine  # noqa: E402
 
 PORT = 8080
 
 
 def _patient_record_lookup(args: dict) -> str:
-    return json.dumps({
-        "patient_id": args.get("patient_id", ""),
-        "record_type": args.get("record_type", "full"),
-        "age": 54,
-        "active_diagnoses": ["essential hypertension"],
-        "current_medications": ["lisinopril 10mg"],
-        "last_visit": "2026-05-28",
-        "status": "retrieved",
-    })
+    return json.dumps(clinical_engine.patient_record(
+        args.get("patient_id", ""), args.get("record_type", "full")))
 
 
 def _clinical_decision_support(args: dict) -> str:
-    return json.dumps({
-        "patient_id": args.get("patient_id", ""),
-        "differential": [
-            {"condition": "Type 2 Diabetes Mellitus", "confidence": 0.91},
-            {"condition": "Metabolic Syndrome", "confidence": 0.64},
-        ],
-        "recommended_tests": ["oral glucose tolerance test", "lipid panel"],
-        "status": "completed",
-    })
+    return json.dumps(clinical_engine.clinical_decision_support(
+        args.get("patient_id", ""), args.get("presenting_symptoms")))
+
+
+def _drug_interaction_check(args: dict) -> str:
+    return json.dumps(clinical_engine.drug_interaction_check(
+        args.get("patient_id", ""), args.get("proposed_medications", [])))
 
 
 def _treatment_plan_writer(args: dict) -> str:
@@ -53,6 +52,7 @@ def _treatment_plan_writer(args: dict) -> str:
 TOOLS = {
     "ehr.patient_record_lookup": _patient_record_lookup,
     "ehr.clinical_decision_support": _clinical_decision_support,
+    "ehr.drug_interaction_check": _drug_interaction_check,
     "ehr.treatment_plan_writer": _treatment_plan_writer,
 }
 

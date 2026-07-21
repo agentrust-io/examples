@@ -71,6 +71,22 @@ jobs:
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: python validate_artifacts.py
 
+  healthcare:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: healthcare
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Run clinical engine tests
+        run: python -m unittest discover -s tests -v
+
   embodied-action-receipts:
     runs-on: ubuntu-latest
     defaults:

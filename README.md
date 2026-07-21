@@ -1,16 +1,18 @@
 ﻿[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![cMCP](https://img.shields.io/badge/Uses-cMCP_Runtime-7c3aed)](https://github.com/agentrust-io/cmcp)
 [![Agent Manifest](https://img.shields.io/badge/Uses-Agent_Manifest-0ea5e9)](https://github.com/agentrust-io/agent-manifest)
+[![cA2A](https://img.shields.io/badge/Uses-cA2A-7c3aed)](https://github.com/agentrust-io/ca2a)
 [![Discord](https://dcbadge.limes.pink/api/server/9JWNpH7E?style=flat)](https://discord.gg/9JWNpH7E)
 
 # agentrust-io Examples
 
-End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working together across deployment scenarios. Each example is self-contained and runnable on a fresh cloud VM. Running them shows how the three projects compose: cMCP enforces policy at the tool call boundary, Agent Manifest carries the identity and capability declaration, and TRACE emits a signed Trust Record for every tool invocation so you can see what the full audit trail looks like in practice.
+End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working together across deployment scenarios. Each example is self-contained and runnable on a fresh cloud VM. Running them shows how the projects compose: cMCP enforces policy at the tool call boundary, Agent Manifest carries the identity and capability declaration, cA2A attenuates authority at the agent-to-agent boundary, and TRACE emits a signed Trust Record for every tool invocation so you can see what the full audit trail looks like in practice.
 
 ## Examples
 
 | Example | What it shows | Platform | Compliance |
 |---|---|---|---|
+| `ca2a-delegation/` | Agent-to-agent delegation with cA2A: attenuated credit-workflow chain, offline verification, and a rejected scope escalation | Software-only (offline) | Separation of duties, least authority |
 | `embodied-action-receipts/` | Fixture-style offline verification for embodied action receipts: accepted chain, missing receipt, signature mismatch and valid controller rejection | Software-only fixtures | TRACE action-receipt evidence boundary |
 | `financial-services/` | Corporate credit risk agent: six-step assessment with CDD, exposure and IFRS 9 guardrails on the write | SEV-SNP / TDX | EU AI Act Art. 9/12, CRR Art. 395, EBA/GL/2020/06, EU AML, DORA Art. 9 |
 | `healthcare/` | Clinical agent on a coherent ICD-10 patient: drug-interaction check feeds EU AI Act Art. 14 HITL and contraindication denies | SEV-SNP / TDX | EU AI Act Art. 14, HIPAA |
@@ -18,7 +20,7 @@ End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working 
 | `multi-tenant-saas/` | HR SaaS with an EU tenant (enforcing GDPR residency/Art. 9) and a US tenant (advisory) on one catalog | TDX | GDPR Art. 6/9/44, customer DPA |
 | `startup-tpm/` | 15-minute quickstart on any cloud VM with Trusted Launch | TPM 2.0 | Development / staging |
 
-Each example is fully runnable with no external dependencies: it ships a mock upstream MCP server, an agent script, an attested tool catalog, and a Cedar policy bundle, and ends by printing the signed TRACE Trust Record for the session. The `trace-output/` files in each example are captured from real runs.
+Most examples are fully runnable with no external dependencies: they ship a mock upstream MCP server, an agent script, an attested tool catalog, and a Cedar policy bundle, and end by printing the signed TRACE Trust Record for the session. The `trace-output/` files are captured from real runs. The `ca2a-delegation/` and `embodied-action-receipts/` examples are offline verifiers and ship their captured chains instead.
 
 ## Quickstart
 

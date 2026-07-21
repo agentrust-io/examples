@@ -1,16 +1,27 @@
 #!/usr/bin/env python3
 """
-Credit risk agent demo for EU private bank.
+Credit risk agent demo for an EU corporate lender.
 
-Calls three MCP tools through the cMCP Runtime using JSON-RPC 2.0 over HTTP,
-then closes the session to obtain the signed TRACE Trust Record.
+Runs a six-step credit assessment through the cMCP Runtime using JSON-RPC 2.0
+over HTTP, then closes the session to obtain the signed TRACE Trust Record. The
+arguments the agent passes to the final write call (CDD clearance, IFRS 9 stage,
+concentration breach, rating) are derived from the earlier tool outputs, so the
+Cedar guardrails act on the real result of the assessment.
+
+Three scenarios:
+
+    --scenario clean            Rheintal Präzisionstechnik GmbH, EUR 250k.
+                                Clean CDD, within limits, performing. All allow.
+    --scenario large-exposure   Nordwind Logistik AG, EUR 750k. Exceeds
+                                delegated authority and breaches the
+                                concentration limit. Write denied.
+    --scenario sanctions-hit    Meridian Trading DMCC, EUR 200k. A beneficial
+                                owner matches a sanctions list, so CDD does not
+                                clear and the runtime blocks the write.
 
 Usage:
-    python credit_risk_agent.py [--gateway http://localhost:8443] [--amount-eur 250000]
-
-The default amount (250,000 EUR) is below the 500k escalation threshold, so
-all calls are allowed. Pass --amount-eur 750000 to trigger the MiFID II
-human-review deny with structured advice from the Cedar policy.
+    python credit_risk_agent.py [--gateway http://localhost:8443]
+                                [--scenario clean|large-exposure|sanctions-hit]
 """
 
 import argparse
@@ -18,17 +29,23 @@ import json
 import sys
 import httpx
 
+# Company names in this demo carry German umlauts; force UTF-8 so the console
+# output is correct on Windows terminals too.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 DEFAULT_GATEWAY = "http://localhost:8443"
 WORKFLOW_ID = "credit-risk-analyst"
+BUREAU = "creditreform"
 
-CLIENT_ID = "EUR-2024-00847"
-DOCUMENT_ID = "BS-2024-Q4"
-CREDIT_BUREAU = "equifax"
-RISK_SCORE = 72.3
-RECOMMENDATION = "approve"
+SCENARIOS = {
+    "clean": {"client_id": "DE-CORP-2024-00847", "amount_eur": 250_000},
+    "large-exposure": {"client_id": "DE-CORP-2024-01120", "amount_eur": 750_000},
+    "sanctions-hit": {"client_id": "AE-CORP-2024-00311", "amount_eur": 200_000},
+}
 
 
-def call_tool(client: httpx.Client, gateway: str, tool_name: str, arguments: dict, req_id: int) -> dict:
+def call_tool(client, gateway, tool_name, arguments, req_id):
     payload = {
         "jsonrpc": "2.0",
         "id": req_id,
@@ -42,20 +59,20 @@ def call_tool(client: httpx.Client, gateway: str, tool_name: str, arguments: dic
     resp = client.post(f"{gateway}/mcp", json=payload, timeout=30)
     body = resp.json()
     if "error" in body:
-        return {"ok": False, "error": body["error"], "session_id": None}
+        return {"ok": False, "error": body["error"], "payload": None, "session_id": None}
     result = body["result"]
+    payload_text = result.get("content", [{}])[0].get("text", "{}")
     return {
         "ok": True,
-        "result": result,
+        "payload": json.loads(payload_text),
         "session_id": result.get("_cmcp", {}).get("session_id"),
     }
 
 
-def print_outcome(outcome: dict) -> None:
+def print_outcome(step, tool, outcome, note=""):
+    print(f"[{step}] {tool} ...")
     if outcome["ok"]:
-        meta = outcome["result"].get("_cmcp", {})
-        decision = "advisory_deny" if meta.get("would_have_denied") else "allow"
-        print(f"      -> decision: {decision}")
+        print(f"      -> decision: allow{('  ' + note) if note else ''}")
     else:
         data = outcome["error"].get("data", {})
         print(f"      -> decision: deny ({data.get('error_code', 'unknown')})")
@@ -66,42 +83,79 @@ def print_outcome(outcome: dict) -> None:
                 print(f"           {key}: {value}")
 
 
-def close_session(client: httpx.Client, gateway: str, session_id: str) -> dict:
+def close_session(client, gateway, session_id):
     resp = client.post(f"{gateway}/sessions/{session_id}/close", timeout=10)
     resp.raise_for_status()
     return resp.json()
 
 
-def run(gateway: str, amount_eur: int) -> None:
+def run(gateway, scenario):
+    sc = SCENARIOS[scenario]
+    client_id, amount = sc["client_id"], sc["amount_eur"]
     print(f"Connecting to cMCP Runtime at {gateway}")
-    print(f"Client: {CLIENT_ID}  |  Document: {DOCUMENT_ID}  |  Amount: EUR {amount_eur:,}")
+    print(f"Scenario: {scenario}  |  Client: {client_id}  |  Facility: EUR {amount:,}")
     print()
 
     session_id = None
     with httpx.Client(headers={"Content-Type": "application/json"}) as client:
-        print("[1/3] Calling finance.document_reader ...")
-        o1 = call_tool(client, gateway, "finance.document_reader",
-                       {"document_id": DOCUMENT_ID, "client_id": CLIENT_ID}, 1)
-        print_outcome(o1)
+        o1 = call_tool(client, gateway, "finance.document_reader", {"client_id": client_id}, 1)
+        note = ""
+        if o1["ok"]:
+            p = o1["payload"]
+            note = f"{p.get('legal_name')} (LEI {p.get('lei')})"
+        print_outcome("1/6", "finance.document_reader", o1, note)
         session_id = o1.get("session_id") or session_id
 
-        print("[2/3] Calling finance.credit_score_lookup ...")
-        o2 = call_tool(client, gateway, "finance.credit_score_lookup",
-                       {"client_id": CLIENT_ID, "bureau": CREDIT_BUREAU}, 2)
-        print_outcome(o2)
+        o2 = call_tool(client, gateway, "finance.sanctions_screening", {"client_id": client_id}, 2)
+        cdd_status = o2["payload"].get("cdd_status") if o2["ok"] else "unknown"
+        print_outcome("2/6", "finance.sanctions_screening", o2, f"cdd_status={cdd_status}")
         session_id = o2.get("session_id") or session_id
 
-        print("[3/3] Calling finance.risk_report_writer ...")
-        o3 = call_tool(client, gateway, "finance.risk_report_writer",
-                       {"client_id": CLIENT_ID, "risk_score": RISK_SCORE,
-                        "recommendation": RECOMMENDATION, "amount_eur": amount_eur}, 3)
-        print_outcome(o3)
+        o3 = call_tool(client, gateway, "finance.credit_bureau_lookup",
+                       {"client_id": client_id, "bureau": BUREAU}, 3)
+        note = ""
+        if o3["ok"]:
+            p = o3["payload"]
+            note = f"Creditreform index {p.get('bonitaetsindex')} ({p.get('assessment')})"
+        print_outcome("3/6", "finance.credit_bureau_lookup", o3, note)
         session_id = o3.get("session_id") or session_id
 
-        if not o3["ok"]:
+        o4 = call_tool(client, gateway, "finance.exposure_aggregation",
+                       {"client_id": client_id, "proposed_facility_eur": amount}, 4)
+        breaches = o4["payload"].get("breaches_concentration_limit") if o4["ok"] else None
+        aggregate = o4["payload"].get("aggregate_exposure_eur") if o4["ok"] else None
+        print_outcome("4/6", "finance.exposure_aggregation", o4,
+                      f"aggregate EUR {aggregate:,}  breach={breaches}" if aggregate is not None else "")
+        session_id = o4.get("session_id") or session_id
+
+        o5 = call_tool(client, gateway, "finance.risk_model",
+                       {"client_id": client_id, "proposed_facility_eur": amount}, 5)
+        rating = o5["payload"].get("internal_rating") if o5["ok"] else None
+        pd_1y = o5["payload"].get("pd_1y") if o5["ok"] else None
+        ifrs9_stage = o5["payload"].get("ifrs9_stage") if o5["ok"] else None
+        print_outcome("5/6", "finance.risk_model", o5,
+                      f"rating {rating}  IFRS9 stage {ifrs9_stage}")
+        session_id = o5.get("session_id") or session_id
+
+        cdd_cleared = cdd_status == "clear"
+        recommendation = "approve" if (cdd_cleared and not breaches and ifrs9_stage == 1) else "refer"
+        o6 = call_tool(client, gateway, "finance.risk_report_writer", {
+            "client_id": client_id,
+            "internal_rating": rating,
+            "pd_1y": pd_1y,
+            "ifrs9_stage": ifrs9_stage,
+            "amount_eur": amount,
+            "aggregate_exposure_eur": aggregate,
+            "breaches_concentration_limit": breaches,
+            "cdd_cleared": cdd_cleared,
+            "recommendation": recommendation,
+        }, 6)
+        print_outcome("6/6", "finance.risk_report_writer", o6)
+        session_id = o6.get("session_id") or session_id
+
+        if not o6["ok"]:
             print()
             print("  The risk report was NOT written to the core banking system.")
-            print("  Exposures above EUR 500,000 require a human reviewer (MiFID II Art. 25).")
 
         print()
         if session_id is None:
@@ -120,10 +174,10 @@ def run(gateway: str, amount_eur: int) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Credit risk agent demo")
+    parser = argparse.ArgumentParser(description="EU corporate credit risk agent demo")
     parser.add_argument("--gateway", default=DEFAULT_GATEWAY,
                         help=f"cMCP Runtime base URL (default: {DEFAULT_GATEWAY})")
-    parser.add_argument("--amount-eur", type=int, default=250_000,
-                        help="Credit amount in EUR (default 250000; >500000 triggers HITL deny)")
+    parser.add_argument("--scenario", default="clean", choices=sorted(SCENARIOS),
+                        help="which client scenario to run (default: clean)")
     args = parser.parse_args()
-    run(args.gateway, args.amount_eur)
+    run(args.gateway, args.scenario)

@@ -26,6 +26,22 @@ jobs:
             python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" "$f" && echo "OK: $f" || exit 1
           done
 
+  financial-services:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: financial-services
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Run credit engine tests
+        run: python -m unittest discover -s tests -v
+
   industrial-embodied-ai:
     runs-on: ubuntu-latest
     defaults:

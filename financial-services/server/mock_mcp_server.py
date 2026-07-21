@@ -2,7 +2,10 @@
 """
 Mock EU Credit Risk MCP Server for the financial-services demo.
 
-Serves the three catalog tools with canned responses on port 8080.
+Serves the six catalog tools on port 8080. Tool responses are computed by
+``credit_engine`` from a small set of realistic EU corporate client fixtures,
+so the server, the tests and the agent all agree on the same data.
+
 Stdlib only -- no dependencies.
 
 Usage:
@@ -10,37 +13,51 @@ Usage:
 """
 
 import json
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+
+EXAMPLE_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(EXAMPLE_DIR))
+
+import credit_engine  # noqa: E402
 
 PORT = 8080
 
 
 def _document_reader(args: dict) -> str:
-    return json.dumps({
-        "document_id": args.get("document_id", ""),
-        "client_id": args.get("client_id", ""),
-        "document_type": "balance_sheet",
-        "period": "2024-Q4",
-        "total_assets_eur": 4_820_000,
-        "total_liabilities_eur": 3_140_000,
-        "status": "retrieved",
-    })
+    return json.dumps(credit_engine.read_financials(args.get("client_id", credit_engine.DEFAULT_CLIENT)))
 
 
-def _credit_score_lookup(args: dict) -> str:
-    return json.dumps({
-        "client_id": args.get("client_id", ""),
-        "bureau": args.get("bureau", "equifax"),
-        "score": 742,
-        "scale": "280-850",
-        "retrieved_at": "2026-06-10T09:00:00Z",
-    })
+def _sanctions_screening(args: dict) -> str:
+    return json.dumps(credit_engine.screen_sanctions(args.get("client_id", credit_engine.DEFAULT_CLIENT)))
+
+
+def _credit_bureau_lookup(args: dict) -> str:
+    return json.dumps(credit_engine.bureau_report(
+        args.get("client_id", credit_engine.DEFAULT_CLIENT),
+        args.get("bureau", "creditreform"),
+    ))
+
+
+def _exposure_aggregation(args: dict) -> str:
+    return json.dumps(credit_engine.aggregate_exposure(
+        args.get("client_id", credit_engine.DEFAULT_CLIENT),
+        int(args.get("proposed_facility_eur", 0)),
+    ))
+
+
+def _risk_model(args: dict) -> str:
+    return json.dumps(credit_engine.run_risk_model(
+        args.get("client_id", credit_engine.DEFAULT_CLIENT),
+        int(args.get("proposed_facility_eur", 0)),
+    ))
 
 
 def _risk_report_writer(args: dict) -> str:
     return json.dumps({
         "client_id": args.get("client_id", ""),
-        "risk_score": args.get("risk_score"),
+        "internal_rating": args.get("internal_rating"),
         "recommendation": args.get("recommendation"),
         "amount_eur": args.get("amount_eur"),
         "report_id": "RR-2026-04471",
@@ -50,7 +67,10 @@ def _risk_report_writer(args: dict) -> str:
 
 TOOLS = {
     "finance.document_reader": _document_reader,
-    "finance.credit_score_lookup": _credit_score_lookup,
+    "finance.sanctions_screening": _sanctions_screening,
+    "finance.credit_bureau_lookup": _credit_bureau_lookup,
+    "finance.exposure_aggregation": _exposure_aggregation,
+    "finance.risk_model": _risk_model,
     "finance.risk_report_writer": _risk_report_writer,
 }
 

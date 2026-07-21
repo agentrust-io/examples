@@ -1,65 +1,128 @@
-// Cedar policy bundle for EU credit risk agent
-// version: credit-risk-v4.2
+// Cedar policy bundle for EU corporate credit risk agent
+// version: credit-risk-v5.0
 // author: compliance@bank.eu
 //
-// Action names follow the cMCP convention: tool_name converted to
-// PascalCase per underscore segment, e.g. finance.risk_report_writer
-// becomes Action::"Finance.riskReportWriter".
+// Action names follow the cMCP convention: the segment before the dot is
+// PascalCase and each underscore segment after it is camelCase, e.g.
+// finance.risk_report_writer becomes Action::"Finance.riskReportWriter".
 //
 // There is deliberately NO catch-all permit: anything not explicitly
-// permitted below is denied (Cedar default-deny). The workflow_id is
-// supplied by the agent via the _cmcp request metadata; calls without
-// it are denied.
+// permitted below is denied (Cedar default-deny). The workflow_id is supplied
+// by the agent via the _cmcp request metadata; calls without it are denied.
 
-// Rule 1: the credit-risk-analyst workflow may read client documents.
+// --- Workflow-scoped permits -------------------------------------------------
+// The credit-risk-analyst workflow may run each step of the assessment.
+
 permit (
   principal,
   action == Action::"Finance.documentReader",
   resource
 ) when {
-  context has workflow_id &&
-  context.workflow_id == "credit-risk-analyst"
+  context has workflow_id && context.workflow_id == "credit-risk-analyst"
 };
 
-// Rule 2: the credit-risk-analyst workflow may query credit bureaus.
 permit (
   principal,
-  action == Action::"Finance.creditScoreLookup",
+  action == Action::"Finance.sanctionsScreening",
   resource
 ) when {
-  context has workflow_id &&
-  context.workflow_id == "credit-risk-analyst"
+  context has workflow_id && context.workflow_id == "credit-risk-analyst"
 };
 
-// Rule 3: the credit-risk-analyst workflow may write risk reports.
-// Subject to the large-exposure forbid below.
+permit (
+  principal,
+  action == Action::"Finance.creditBureauLookup",
+  resource
+) when {
+  context has workflow_id && context.workflow_id == "credit-risk-analyst"
+};
+
+permit (
+  principal,
+  action == Action::"Finance.exposureAggregation",
+  resource
+) when {
+  context has workflow_id && context.workflow_id == "credit-risk-analyst"
+};
+
+permit (
+  principal,
+  action == Action::"Finance.riskModel",
+  resource
+) when {
+  context has workflow_id && context.workflow_id == "credit-risk-analyst"
+};
+
 permit (
   principal,
   action == Action::"Finance.riskReportWriter",
   resource
 ) when {
-  context has workflow_id &&
-  context.workflow_id == "credit-risk-analyst"
+  context has workflow_id && context.workflow_id == "credit-risk-analyst"
 };
 
-// Rule 4: large-exposure escalation (MiFID II Art. 25).
-// Any risk report above 500,000 EUR requires a human reviewer. The
-// annotations are returned to the caller as structured advice on deny.
-@id("large-exposure-hitl")
-@reason("human-review-required")
-@regulation("mifid-ii-art-25")
-@escalation_threshold_eur("500000")
+// --- Guardrails on writing the assessment ------------------------------------
+// Each forbid overrides the permits above and carries structured advice back
+// to the caller in the deny response (error.data.advice).
+
+// Customer due diligence must be cleared before any assessment is written.
+// A sanctions or PEP hit leaves cdd_cleared false and blocks the write, so the
+// gate is enforced by the runtime rather than left to the agent's good
+// behaviour.
+@id("cdd-clearance-required")
+@reason("cdd-clearance-required")
+@regulation("eu-aml-regulation-2024-1624")
 forbid (
   principal,
   action == Action::"Finance.riskReportWriter",
   resource
 ) when {
-  context.arguments has amount_eur &&
-  context.arguments.amount_eur > 500000
+  !(context.arguments has cdd_cleared) || context.arguments.cdd_cleared != true
 };
 
-// Rule 5: confidential financial data may only flow through an attested
-// runtime. attestation_platform is supplied by the gateway from the TEE
+// Facilities above the delegated lending authority require a human credit
+// decision-maker (EBA loan-origination governance).
+@id("delegated-authority-hitl")
+@reason("human-review-required")
+@regulation("eba-gl-2020-06")
+@delegated_authority_limit_eur("500000")
+forbid (
+  principal,
+  action == Action::"Finance.riskReportWriter",
+  resource
+) when {
+  context.arguments has amount_eur && context.arguments.amount_eur > 500000
+};
+
+// The proposed facility must not breach the single-obligor concentration
+// limit (the internal implementation of the CRR large-exposures regime).
+@id("large-exposure-concentration")
+@reason("concentration-limit-breached")
+@regulation("crr-art-395")
+forbid (
+  principal,
+  action == Action::"Finance.riskReportWriter",
+  resource
+) when {
+  context.arguments has breaches_concentration_limit &&
+  context.arguments.breaches_concentration_limit == true
+};
+
+// Credit-impaired obligors (IFRS 9 stage 3) cannot be auto-approved; they go
+// to manual restructuring review.
+@id("credit-impaired-manual-review")
+@reason("ifrs9-stage-3-credit-impaired")
+@regulation("ifrs-9")
+forbid (
+  principal,
+  action == Action::"Finance.riskReportWriter",
+  resource
+) when {
+  context.arguments has ifrs9_stage && context.arguments.ifrs9_stage == 3
+};
+
+// Confidential (mnpi) financial data may only flow through an attested
+// runtime. attestation_platform is supplied by the runtime from the TEE
 // attestation report; "unknown" means no attestation evidence is present.
 @id("require-attested-runtime")
 @reason("attested-runtime-required")
@@ -69,6 +132,5 @@ forbid (
   action,
   resource
 ) when {
-  context.compliance_domain == "mnpi" &&
-  context.attestation_platform == "unknown"
+  context.compliance_domain == "mnpi" && context.attestation_platform == "unknown"
 };

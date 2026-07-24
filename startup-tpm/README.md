@@ -106,8 +106,8 @@ cmcp start --config cmcp-config.yaml
 Expected startup output ends with:
 
 ```
-cMCP Runtime starting: TEE: software-only, listen: 0.0.0.0:8443
-INFO:     Uvicorn running on http://0.0.0.0:8443
+cMCP Runtime starting: TEE: software-only, listen: 127.0.0.1:8443
+INFO:     Uvicorn running on http://127.0.0.1:8443
 ```
 
 ---

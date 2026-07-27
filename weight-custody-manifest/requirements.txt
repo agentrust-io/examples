@@ -1,0 +1,3 @@
+# The Weight Custody Manifest reference SDK, from PyPI.
+# Covers the three offline demos (open_model_e2e, sovereign_self_custody, snp_replay).
+weight-custody-manifest>=0.19.0

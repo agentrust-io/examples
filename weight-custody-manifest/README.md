@@ -18,7 +18,19 @@ cd examples/weight-custody-manifest
 pip install -r requirements.txt      # weight-custody-manifest>=0.19.0, Python 3.11+
 ```
 
-The three offline demos need nothing else. `real_open_model.py` needs run-local extras (below).
+The offline demos need nothing else. `real_open_model.py` needs run-local extras (below).
+
+---
+
+## Start here: the 30-second demo
+
+`refuse_and_wipe.py` is the whole idea in two moments: the weight-decryption key **refuses** to release into an enclave running a tampered serving stack, and **wipe-on-lapse** zeroizes it the moment custody lapses (gone, not suspended).
+
+```bash
+python refuse_and_wipe.py
+```
+
+The demos below go deeper on the same machinery.
 
 ---
 
@@ -64,7 +76,7 @@ python real_open_model.py --local path/to/model.safetensors   # skip the downloa
 
 ## What runs in CI
 
-The three offline demos (`open_model_e2e.py`, `sovereign_self_custody.py`, `snp_replay.py`) run in CI against the published PyPI package and must exit 0. `real_open_model.py` is not in CI (it downloads a model).
+The offline demos (`refuse_and_wipe.py`, `open_model_e2e.py`, `sovereign_self_custody.py`, `snp_replay.py`) run in CI against the published PyPI package and must exit 0. `real_open_model.py` is not in CI (it downloads a model).
 
 ## Reference
 

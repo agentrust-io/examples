@@ -162,6 +162,9 @@ jobs:
       - name: Install the WCM SDK from PyPI
         run: python -m pip install -r requirements.txt
 
+      - name: Run the 30-second refuse-and-wipe demo
+        run: python refuse_and_wipe.py
+
       - name: Run the end-to-end custody demo
         run: python open_model_e2e.py
 

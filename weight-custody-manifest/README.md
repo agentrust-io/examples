@@ -2,7 +2,7 @@
 
 The other examples in this repo govern what an agent may **do**. This one governs the model **weights** themselves: when a builder deploys a model into a customer's own or sovereign infrastructure, how do you prove the weights running in the enclave are exactly the ones the builder shipped, release the decryption key only against a valid hardware attestation, wipe it when custody lapses, and carry the lineage of every derivative?
 
-That is the [Weight Custody Manifest](https://pypi.org/project/weight-custody-manifest/) (WCM): an open protocol and reference SDK. These four demos run its real code.
+That is the [Weight Custody Manifest](https://pypi.org/project/weight-custody-manifest/) (WCM): an open protocol and reference SDK. These demos run its real code, roughly one per feature.
 
 For a public open-weight model, base-weight confidentiality is theater (anyone can download the weights), so the same flow does the work that still matters: **integrity and provenance** (is this the model the builder shipped, or a tampered copy), **license as a release condition**, **derivative custody and lineage**, and a **kill switch**.
 
@@ -15,7 +15,7 @@ For a public open-weight model, base-weight confidentiality is theater (anyone c
 ```bash
 git clone https://github.com/agentrust-io/examples.git
 cd examples/weight-custody-manifest
-pip install -r requirements.txt      # weight-custody-manifest>=0.19.0, Python 3.11+
+pip install -r requirements.txt      # weight-custody-manifest>=0.21.0, Python 3.11+
 ```
 
 The offline demos need nothing else. `real_open_model.py` needs run-local extras (below).
@@ -36,47 +36,49 @@ The demos below go deeper on the same machinery.
 
 ## The demos
 
-### 1. `open_model_e2e.py` -- the whole flow, end to end
+Each script is one runnable feature with mock (software) attestation, so they run anywhere. `refuse_and_wipe.py` above is the 30-second version.
 
-The full six-step Weight Custody Manifest flow on an open-weight model with a mock attestation provider: sign the joint manifest (builder + custodian), run the attestation-gated key release, hold the key under a wipe-on-lapse custody lease, enforce the license as a release condition, then fine-tune into a derivative and verify its lineage back to the base. Narrated, and honest about which steps are real work versus theater for a public model. Runs anywhere.
+### Closed-weight vs open-weight
+
+The same machinery, two trust settings. **Closed** weights (a frontier model deployed into someone else's infra) need secrecy. **Open** weights (Llama, Mistral, SmolLM) are already public, so the flow instead does integrity, license, and derivative custody.
+
+- **`closed_model_e2e.py`** -- the closed/frontier flow where secrecy is the job (`base_confidentiality: confidential`): sign, attestation-gated release of the real decryption key, wipe-on-lapse custody, and the honest hostile-owner caveat.
+- **`open_model_e2e.py`** -- the full six-step flow on an open model, honest about which steps are real work versus theater for a public base (the base's secrecy is theater; integrity, license, derivative custody, and the kill switch are the point).
+
+### The four layers, feature by feature
+
+- **`multi_stage_byom.py`** -- Layer 4 at depth (SPEC 3.8): a base to derivative to derivative chain, monotone rights (a derivative narrows but never widens), release gated on every upstream being logged, and a revocation cascading down the chain.
+- **`revocation_kill_switch.py`** -- the kill switch: a serving session, a revocation, and the enclave stopping at the next cadence lapse (the key is zeroized, not suspended).
+- **`channel_binding.py`** -- Layer 2 relay defense (CVE-2026-33697): the released key is sealed to the enclave's attested transport key, so a relayed attestation gets only ciphertext it cannot open.
+- **`sovereign_self_custody.py`** -- 2-of-3 threshold release (SPEC 3.5): no single party, and no single forged quote, can assemble the key.
+
+### Transparency, post-quantum, provenance
+
+- **`transparency_log.py`** -- the append-only Merkle log (SPEC 3.7 / RFC 9162): inclusion and consistency proofs, and a monitor detecting a suppressed revocation.
+- **`post_quantum.py`** -- sign and verify a manifest with ML-DSA-65 and with the Ed25519+ML-DSA-65 hybrid profile.
+- **`provenance_model_signing.py`** -- interop with OpenSSF model-signing: a WCM manifest references a model-signing signature as its provenance, and `verify_provenance` cryptographically verifies it. Needs the extra: `pip install "weight-custody-manifest[model-signing]"`.
+
+### Verifying real attestations
+
+- **`snp_replay.py`** -- replay a recorded AMD SEV-SNP quote offline: parse the report, verify the VCEK to ASK to ARK chain to a trusted AMD root, the report signature, and the nonce binding. A synthetic bundle is committed in `fixtures/`; pass a captured bundle to replay genuine silicon.
+- **`quote_verification.py`** -- the verifier machinery against a synthetic PKI: cert chain, report signature, and nonce binding, passing and failing (untrusted root, tampered report, nonce mismatch). This is the same machinery the SEV-SNP, TDX, and NVIDIA GPU verifiers plug into.
+
+### Over real weights (run-local)
+
+- **`real_open_model.py`** -- the flow over a real open model's actual bytes: it downloads SmolLM2-135M (~270MB), hashes its real safetensors into the manifest, includes a tamper demo (a one-byte-flipped fork no longer matches), and with `--infer` loads the model and generates. Network and heavy, so it is run-local and excluded from CI.
 
 ```bash
-python open_model_e2e.py
-```
-
-### 2. `sovereign_self_custody.py` -- threshold release, no single point of trust
-
-Sovereign self-custody with a 2-of-3 threshold split-key (SPEC 3.5): the release key is split with Shamir secret sharing so no single party can release the weights alone. Real WCM code, software attestation, runs anywhere.
-
-```bash
-python sovereign_self_custody.py
-```
-
-### 3. `snp_replay.py` -- replay a real attestation, offline
-
-The CPU half of Layer 2's composite verification (SPEC 3.2), run offline against a recorded AMD SEV-SNP quote. It exercises exactly what a key broker runs before releasing a key: parse the SNP report, verify the VCEK to ASK to ARK certificate chain to a trusted AMD root, verify the report's own signature, and confirm REPORT_DATA binds the challenge nonce (anti-replay). A synthetic bundle is committed in `fixtures/` so it runs anywhere; pass a captured bundle to replay genuine silicon.
-
-```bash
-python snp_replay.py                         # committed synthetic bundle
-python snp_replay.py path/to/snp_quote.json  # a bundle captured on a real Azure SEV-SNP CVM
-```
-
-### 4. `real_open_model.py` -- run-local, over real weights
-
-The same flow over a **real** open model's actual bytes: it downloads an open model (SmolLM2-135M by default, ~270MB), hashes its real safetensors into the manifest, includes a tamper demo (a one-byte-flipped fork no longer matches the manifest), and with `--infer` loads the model and generates so the certified serving stack is a real running model. Network and heavy, so it is run-local and excluded from CI.
-
-```bash
-pip install -r requirements-infer.txt
-python real_open_model.py                    # download, hash, full flow, tamper demo
-python real_open_model.py --infer            # also load the model and generate
-python real_open_model.py --local path/to/model.safetensors   # skip the download
+python closed_model_e2e.py                             # any of the offline examples
+pip install "weight-custody-manifest[model-signing]"   # for provenance_model_signing.py
+pip install -r requirements-infer.txt                  # for real_open_model.py
+python real_open_model.py
 ```
 
 ---
 
 ## What runs in CI
 
-The offline demos (`refuse_and_wipe.py`, `open_model_e2e.py`, `sovereign_self_custody.py`, `snp_replay.py`) run in CI against the published PyPI package and must exit 0. `real_open_model.py` is not in CI (it downloads a model).
+Every offline example runs in CI against the published PyPI package and must exit 0: `refuse_and_wipe`, the closed/open e2e pair, `multi_stage_byom`, `revocation_kill_switch`, `channel_binding`, `sovereign_self_custody`, `transparency_log`, `post_quantum`, `quote_verification`, `snp_replay`, and `provenance_model_signing` (with the `[model-signing]` extra). Only `real_open_model.py` is excluded (it downloads a model).
 
 ## Reference
 

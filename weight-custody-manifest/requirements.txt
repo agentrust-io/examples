@@ -1,3 +1,4 @@
 # The Weight Custody Manifest reference SDK, from PyPI.
-# Covers the three offline demos (open_model_e2e, sovereign_self_custody, snp_replay).
-weight-custody-manifest>=0.19.0
+# Covers the offline examples. provenance_model_signing.py additionally needs the
+# [model-signing] extra: pip install "weight-custody-manifest[model-signing]".
+weight-custody-manifest>=0.21.0

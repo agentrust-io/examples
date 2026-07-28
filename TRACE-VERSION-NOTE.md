@@ -33,5 +33,12 @@ carry the v0.2 profile with a signature that covers it.
 Until then, read them as what they are: evidence of runs that happened under v0.1,
 still verifiable with `agentrust-trace-tests` 0.3.x.
 
-Documentation, catalogs, and policy manifests in this repository **have** moved to
-v0.2 and to `agentrust-io.com`, since nothing signs those.
+Documentation in this repository **has** moved to v0.2 and to `agentrust-io.com`,
+since nothing signs it.
+
+`industrial-embodied-ai/policy/manifest.json` and `industrial-embodied-ai/catalog.json`
+were also held back, for a subtler reason: nothing signs them directly, but their
+SHA-256 digests are recorded inside the signed trust record as
+`cmcp_policy_bundle_hash` and the catalog hash. Editing a byte of either breaks the
+evidence chain even though neither file carries a signature of its own, which
+`validate_artifacts.py` catches. They regenerate with the records.

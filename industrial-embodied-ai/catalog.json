@@ -60,7 +60,7 @@
     "requires_baa": false,
     "sensitivity_level": "confidential",
     "added_at": "2026-06-11T00:00:00Z",
-    "approved_by": "community-example@agentrust.io"
+    "approved_by": "community-example@agentrust-io.com"
   },
   {
     "tool_name": "robot.request_motion",
@@ -145,6 +145,6 @@
     "requires_baa": false,
     "sensitivity_level": "confidential",
     "added_at": "2026-06-11T00:00:00Z",
-    "approved_by": "community-example@agentrust.io"
+    "approved_by": "community-example@agentrust-io.com"
   }
 ]

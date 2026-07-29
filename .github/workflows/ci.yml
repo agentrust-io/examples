@@ -176,7 +176,7 @@ jobs:
 
       - name: Run the feature examples
         run: |
-          for s in closed_model_e2e multi_stage_byom transparency_log post_quantum channel_binding revocation_kill_switch quote_verification; do
+          for s in closed_model_e2e multi_stage_byom transparency_log post_quantum channel_binding revocation_kill_switch quote_verification load_guard; do
             echo "== $s =="
             python "$s.py"
           done

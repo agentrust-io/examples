@@ -34,6 +34,17 @@ The demos below go deeper on the same machinery.
 
 ---
 
+## Gate your model load (drop-in)
+
+`load_guard.py` is the smallest useful integration: verify the checkpoint before your loader ever touches it. It checks the manifest's joint signature and that the bytes on disk hash to exactly what the builder bound, then refuses a tampered or swapped fork **before** the load. Drop `guarded_load()` in front of your existing `safetensors` or `transformers` load.
+
+```bash
+python load_guard.py                                   # offline: certified loads, tampered refused
+python load_guard.py --load --model model.safetensors  # gate + actually load a real file (run-local)
+```
+
+---
+
 ## The demos
 
 Each script is one runnable feature with mock (software) attestation, so they run anywhere. `refuse_and_wipe.py` above is the 30-second version.
@@ -78,7 +89,7 @@ python real_open_model.py
 
 ## What runs in CI
 
-Every offline example runs in CI against the published PyPI package and must exit 0: `refuse_and_wipe`, the closed/open e2e pair, `multi_stage_byom`, `revocation_kill_switch`, `channel_binding`, `sovereign_self_custody`, `transparency_log`, `post_quantum`, `quote_verification`, `snp_replay`, and `provenance_model_signing` (with the `[model-signing]` extra). Only `real_open_model.py` is excluded (it downloads a model).
+Every offline example runs in CI against the published PyPI package and must exit 0: `refuse_and_wipe`, the closed/open e2e pair, `multi_stage_byom`, `revocation_kill_switch`, `channel_binding`, `sovereign_self_custody`, `transparency_log`, `post_quantum`, `quote_verification`, `load_guard`, `snp_replay`, and `provenance_model_signing` (with the `[model-signing]` extra). Only `real_open_model.py` is excluded (it downloads a model).
 
 ## Reference
 

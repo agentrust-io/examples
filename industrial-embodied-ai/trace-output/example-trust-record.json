@@ -1,9 +1,9 @@
 {
   "cmcp_version": "1.0",
   "trace": {
-    "eat_profile": "tag:agentrust.io,2026:trace-v0.1",
-    "iat": 1781417861,
-    "subject": "spiffe://cmcp.gateway/session/8fe66a2a-836b-4cff-9d05-7518d7f6f464",
+    "eat_profile": "tag:agentrust-io.com,2026:trace-v0.2",
+    "iat": 1786387858,
+    "subject": "spiffe://cmcp.gateway/tee/249d2d132ccc898f",
     "runtime": {
       "platform": "software-only",
       "measurement": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -16,26 +16,58 @@
     },
     "data_class": "confidential",
     "tool_transcript": {
-      "hash": "sha256:9cb9d91fb224e7020cd24830651b63524f6fbb69a6539d389cfc315ff21d38aa",
-      "call_count": 6
+      "hash": "sha256:a579a4ac28dad83d24c5f021d648f5be68c02ae1dcb163dc9416ef2710fc9849",
+      "call_count": 6,
+      "entries": [
+        {
+          "tool_name": "cell.read_safety_state",
+          "data_class": "confidential",
+          "decision": "allow"
+        },
+        {
+          "tool_name": "robot.request_motion",
+          "data_class": "confidential",
+          "decision": "deny"
+        },
+        {
+          "tool_name": "cell.read_safety_state",
+          "data_class": "confidential",
+          "decision": "allow"
+        },
+        {
+          "tool_name": "robot.request_motion",
+          "data_class": "confidential",
+          "decision": "allow"
+        },
+        {
+          "tool_name": "cell.read_safety_state",
+          "data_class": "confidential",
+          "decision": "allow"
+        },
+        {
+          "tool_name": "robot.request_motion",
+          "data_class": "confidential",
+          "decision": "allow"
+        }
+      ]
     },
     "cnf": {
       "jwk": {
         "kty": "OKP",
         "crv": "Ed25519",
-        "x": "5L_3-8KHdhLKTycgp-WXB85OyEiRGLtoq0CcCzvzNg8",
-        "kid": "cmcp-e4bff7fb"
+        "x": "JJ0tEyzMiY_on6Iq6bjOAMbWKxjtjRYzVFajIbU89Ts",
+        "kid": "cmcp-249d2d13"
       }
     }
   },
   "gateway": {
-    "session_id": "8fe66a2a-836b-4cff-9d05-7518d7f6f464",
-    "gateway_version": "0.1.0",
+    "session_id": "858ca4a7-82e7-4a9a-bbdc-e036eef06b78",
+    "gateway_version": "0.4.0",
     "sequence_number": 1,
     "audit_chain": {
-      "root": "321d0076a1a987074def0fb6603198ec3291a9970feff5bc404918bb5557f7cb",
-      "tip": "9cb9d91fb224e7020cd24830651b63524f6fbb69a6539d389cfc315ff21d38aa",
-      "length": 8
+      "root": "d164dabad3533f211b26612562f0cc89dc3071f66e07e6af928645c2ecb60cc2",
+      "tip": "a579a4ac28dad83d24c5f021d648f5be68c02ae1dcb163dc9416ef2710fc9849",
+      "length": 9
     },
     "call_summary": {
       "tool_calls_total": 6,
@@ -59,18 +91,19 @@
       "hash": "sha256:792c86ff8152fa9713d52584c084611eb4929fa5ebf3ec8271dd21f0e0aa7eeb",
       "drift_detected": false
     },
-    "attestation_generated_at": "2026-06-14T06:17:40.551552+00:00",
+    "attestation_generated_at": "2026-08-10T18:41:10.622668+00:00",
     "attestation_validity_seconds": 86400,
     "attestation_stale": false,
     "catalog_exceptions": [],
     "call_log_summary": {
-      "total_calls": 6,
+      "total_calls": 7,
       "tools_called": [
         "cell.read_safety_state",
         "robot.request_motion"
       ],
       "suspicious_sequences_detected": 0
-    }
+    },
+    "kill_switch_triggered": false
   },
-  "signature": "ss46cb_B7LzyqkHH20-76kJBMfz0qqf5CYUoKOvO04m0TwsVf-G4251PAmyJgATZ6cDiv3ZwqpOq-tXu5gNrCg"
+  "signature": "KcNee4vwaRQeNvEvo8oQVyfPGStUvVUN3tpWGapnypUpckmvvrRcqM5qZILqExehDjNEqbLbDmDWlLxPuy9tAw"
 }

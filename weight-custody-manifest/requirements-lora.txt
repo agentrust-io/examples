@@ -4,3 +4,4 @@ transformers==5.14.1
 peft==0.20.0
 accelerate==1.14.0
 torch==2.13.0
+model-signing==1.1.1

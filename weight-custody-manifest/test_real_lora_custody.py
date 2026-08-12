@@ -5,7 +5,7 @@ import pytest
 from cryptography.exceptions import InvalidTag
 
 import real_lora_custody
-from real_lora_custody import decrypt_artifact, encrypt_artifact
+from real_lora_custody import decrypt_artifact, encrypt_artifact, sign_artifact
 
 
 def _adapter(path: pathlib.Path) -> pathlib.Path:
@@ -54,3 +54,22 @@ def test_plaintext_staging_is_removed_when_encryption_fails(
     with pytest.raises(RuntimeError, match="synthetic encryption failure"):
         real_lora_custody.encrypt_and_remove_staging(source, bytes(32))
     assert not source.exists()
+
+
+def test_openssf_signature_covers_complete_adapter(tmp_path: pathlib.Path) -> None:
+    source = _adapter(tmp_path / "source")
+    digest, signature, public_key = sign_artifact(source, tmp_path)
+    assert digest.startswith("sha256:")
+    assert signature.is_file()
+    assert public_key.is_file()
+
+    from model_signing import verifying
+
+    verifying.Config().use_elliptic_key_verifier(public_key=public_key).verify(
+        source, signature
+    )
+    (source / "adapter_model.safetensors").write_bytes(b"tampered")
+    with pytest.raises(Exception):
+        verifying.Config().use_elliptic_key_verifier(public_key=public_key).verify(
+            source, signature
+        )

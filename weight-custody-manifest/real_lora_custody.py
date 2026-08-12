@@ -84,6 +84,15 @@ def encrypt_artifact(root: pathlib.Path, key: bytes) -> dict:
     }
 
 
+def encrypt_and_remove_staging(root: pathlib.Path, key: bytes) -> dict:
+    """Encrypt a staging artifact and remove its plaintext on every exit path."""
+    try:
+        return encrypt_artifact(root, key)
+    finally:
+        if root.exists():
+            shutil.rmtree(root)
+
+
 def decrypt_artifact(envelope: dict, key: bytes, destination: pathlib.Path) -> str:
     """Authenticate, safely unpack, then verify the exact derivative inventory."""
     if envelope.get("format") != FORMAT:
@@ -185,11 +194,7 @@ def main() -> int:
     train_lora(base_path, adapter_path, steps=args.steps)
 
     key = AESGCM.generate_key(bit_length=256)
-    envelope = encrypt_artifact(adapter_path, key)
-    # The saved adapter is a staging artifact, not an output. Once authenticated
-    # encryption succeeds, remove the plaintext copy before doing the release-
-    # side verification and load from a fresh decrypted directory.
-    shutil.rmtree(adapter_path)
+    envelope = encrypt_and_remove_staging(adapter_path, key)
     envelope_path = args.output / "adapter.encrypted.json"
     envelope_path.write_text(json.dumps(envelope, indent=2), encoding="utf-8")
 
@@ -244,11 +249,17 @@ def main() -> int:
         json.dumps(manifest.model_dump(mode="json", exclude_none=True), indent=2),
         encoding="utf-8",
     )
+    verification_keys_path = args.output / "manifest-verification-keys.json"
+    verification_keys_path.write_text(json.dumps({
+        "builder_ed25519_public_b64": base64.b64encode(builder.public_bytes).decode(),
+        "custodian_ed25519_public_b64": base64.b64encode(custodian.public_bytes).decode(),
+    }, indent=2), encoding="utf-8")
     print("base model       :", model_id)
     print("base digest      :", base_digest)
     print("derivative digest:", envelope["artifact_digest"])
     print("encrypted artifact:", envelope_path)
     print("signed manifest  :", manifest_path)
+    print("verification keys:", verification_keys_path)
     print("KBS release      : sealed to ephemeral transport key (software evidence tier)")
 
     with tempfile.TemporaryDirectory(prefix="wcm-lora-") as temp:

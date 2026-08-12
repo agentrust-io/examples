@@ -4,6 +4,7 @@ import pathlib
 import pytest
 from cryptography.exceptions import InvalidTag
 
+import real_lora_custody
 from real_lora_custody import decrypt_artifact, encrypt_artifact
 
 
@@ -39,3 +40,17 @@ def test_manifest_digest_substitution_is_refused(tmp_path: pathlib.Path) -> None
     envelope["artifact_digest"] = "sha256:" + "0" * 64
     with pytest.raises(InvalidTag):
         decrypt_artifact(envelope, bytes(32), tmp_path / "refused")
+
+
+def test_plaintext_staging_is_removed_when_encryption_fails(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _adapter(tmp_path / "source")
+
+    def fail(_root: pathlib.Path, _key: bytes) -> dict:
+        raise RuntimeError("synthetic encryption failure")
+
+    monkeypatch.setattr(real_lora_custody, "encrypt_artifact", fail)
+    with pytest.raises(RuntimeError, match="synthetic encryption failure"):
+        real_lora_custody.encrypt_and_remove_staging(source, bytes(32))
+    assert not source.exists()

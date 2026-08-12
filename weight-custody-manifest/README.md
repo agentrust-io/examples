@@ -76,7 +76,8 @@ The same machinery, two trust settings. **Closed** weights (a frontier model dep
 
 ### Over real weights (run-local)
 
-- **`real_open_model.py`** -- the flow over a real open model's actual bytes: it downloads SmolLM2-135M (~270MB), hashes its real safetensors into the manifest, includes a tamper demo (a one-byte-flipped fork no longer matches), and with `--infer` loads the model and generates. Network and heavy, so it is run-local and excluded from CI.
+- **`real_open_model.py`** -- the flow over a real open model's actual bytes: it resolves SmolLM2-135M to an immutable Hugging Face commit, downloads the complete snapshot, hashes a deterministic inventory of its weights/config/tokenizer artifacts into the manifest, includes a tamper demo, and with `--infer` loads only that verified local snapshot with network fallback disabled. Network and heavy, so it is run-local and excluded from CI.
+- **`real_lora_custody.py`** -- trains a genuine PEFT LoRA derivative from the pinned local SmolLM2 snapshot, hashes and deterministically packages the complete adapter inventory, encrypts it with AES-256-GCM, refuses ciphertext or bound-digest substitution, and loads only the authenticated, locally decrypted adapter. Install `requirements-lora.txt`; the model download/training run is intentionally excluded from CI while the custody mechanics have offline tests.
 
 ```bash
 python closed_model_e2e.py                             # any of the offline examples

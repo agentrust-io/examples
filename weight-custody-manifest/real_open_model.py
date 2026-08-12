@@ -1,6 +1,7 @@
 """End-to-end Weight Custody Manifest flow on a REAL open-weight model, locally.
 
-Downloads a real open model, hashes its ACTUAL weights, and runs the whole WCM
+Downloads a pinned snapshot of a real open model, hashes its ACTUAL artifacts,
+and runs the whole WCM
 flow over those bytes. The ONLY mocked part is the hardware attestation
 (SoftwareProvider): a laptop has no SEV-SNP/TDX/H100, and that hardware-rooted
 step is the one we validate separately on real cloud silicon. Everything else is
@@ -17,12 +18,14 @@ Usage:
     pip install huggingface_hub safetensors
     python real_open_model.py                      # SmolLM2-135M (~270MB)
     python real_open_model.py --model <hf-repo-id> --license "<license>"
-    python real_open_model.py --local path/to/model.safetensors
+    python real_open_model.py --revision <immutable-hf-commit>
+    python real_open_model.py --local path/to/model-directory
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import pathlib
 
 from wcm import (
@@ -44,23 +47,50 @@ def rule(title: str) -> None:
     print(f"\n{'=' * 72}\n{title}\n{'=' * 72}")
 
 
-def sha256_file(path: pathlib.Path, *, flip_first_byte: bool = False) -> str:
-    """Hash a file. With flip_first_byte, hash it as if one byte were modified (a
-    silently tampered fork) without writing a copy."""
+def artifact_files(path: pathlib.Path) -> list[pathlib.Path]:
+    """Return the deterministic file inventory bound by the manifest.
+
+    A directory snapshot includes weights, shard indexes, configuration, and
+    tokenizer assets. Hidden Hugging Face cache metadata is deliberately not
+    part of the serving artifact.
+    """
+    if path.is_file():
+        return [path]
+    files = [
+        p for p in path.rglob("*")
+        if p.is_file() and ".cache" not in p.relative_to(path).parts
+    ]
+    if not files:
+        raise ValueError(f"model artifact contains no files: {path}")
+    return sorted(files, key=lambda p: p.relative_to(path).as_posix())
+
+
+def sha256_artifact(path: pathlib.Path, *, flip_first_byte: bool = False) -> str:
+    """Hash a file or complete model directory with names and boundaries.
+
+    Length-prefixing the relative path and content prevents two different
+    directory layouts from producing the same concatenated byte stream.
+    """
+    root = path if path.is_dir() else path.parent
     h = hashlib.sha256()
     flipped = False
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            if flip_first_byte and not flipped and chunk:
-                b = bytearray(chunk)
-                b[0] ^= 0xFF
-                chunk = bytes(b)
-                flipped = True
-            h.update(chunk)
+    for file_path in artifact_files(path):
+        relative = file_path.relative_to(root).as_posix().encode("utf-8")
+        h.update(len(relative).to_bytes(8, "big"))
+        h.update(relative)
+        h.update(file_path.stat().st_size.to_bytes(8, "big"))
+        with file_path.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                if flip_first_byte and not flipped and chunk:
+                    changed = bytearray(chunk)
+                    changed[0] ^= 0xFF
+                    chunk = bytes(changed)
+                    flipped = True
+                h.update(chunk)
     return "sha256:" + h.hexdigest()
 
 
-def run_inference(model_id: str) -> None:
+def run_inference(verified_path: pathlib.Path) -> None:
     """Optionally load the model and generate, so the certified serving stack is
     a real running model, not a placeholder. Lazy imports; skips if unavailable."""
     try:
@@ -69,26 +99,33 @@ def run_inference(model_id: str) -> None:
         print("  transformers not installed; `pip install transformers` to enable --infer")
         return
     print("  loading the model and generating (real serving stack)...")
-    tok = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(model_id)
+    # The verified local snapshot is the only permissible source after the
+    # manifest check. These settings make an accidental network fallback fail.
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    tok = AutoTokenizer.from_pretrained(verified_path, local_files_only=True)
+    model = AutoModelForCausalLM.from_pretrained(verified_path, local_files_only=True)
     ids = tok("Confidential computing protects", return_tensors="pt")
     out = model.generate(**ids, max_new_tokens=12, do_sample=False)
     print("  model output:", repr(tok.decode(out[0], skip_special_tokens=True)))
 
 
-def resolve_weights(args: argparse.Namespace) -> tuple[pathlib.Path, str]:
+def resolve_artifact(args: argparse.Namespace) -> tuple[pathlib.Path, str]:
     if args.local:
         p = pathlib.Path(args.local)
         if not p.exists():
             raise SystemExit(f"--local path not found: {p}")
         return p, f"local:{p.name}"
     try:
-        from huggingface_hub import hf_hub_download
+        from huggingface_hub import HfApi, snapshot_download
     except ImportError:
         raise SystemExit("pip install huggingface_hub to download a model, or pass --local")
-    print(f"downloading {args.model} model.safetensors (first run only, cached after)...")
-    path = pathlib.Path(hf_hub_download(repo_id=args.model, filename="model.safetensors"))
-    return path, args.model
+    resolved_revision = HfApi().model_info(args.model, revision=args.revision).sha
+    if not resolved_revision:
+        raise SystemExit(f"could not resolve {args.model}@{args.revision} to a commit")
+    print(f"resolved {args.model}@{args.revision} -> {resolved_revision}")
+    print("downloading the immutable snapshot (cached after first run)...")
+    path = pathlib.Path(snapshot_download(repo_id=args.model, revision=resolved_revision))
+    return path, f"{args.model}@{resolved_revision}"
 
 
 def build_manifest(*, weights_hash, license_text, serving, builder_id, custodian_id,
@@ -141,19 +178,24 @@ def sign(manifest, kp, role, signer):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="HuggingFaceTB/SmolLM2-135M")
-    ap.add_argument("--local", default=None, help="path to a local .safetensors instead of downloading")
+    ap.add_argument("--revision", default="main",
+                    help="Hugging Face revision; use an immutable commit for launch evidence")
+    ap.add_argument("--local", default=None,
+                    help="path to a complete local model directory or single model file")
     ap.add_argument("--license", default="Apache-2.0")
     ap.add_argument("--infer", action="store_true",
                     help="also load the model and generate (real serving stack; needs transformers)")
     args = ap.parse_args()
 
-    weights_path, model_id = resolve_weights(args)
-    size_mb = weights_path.stat().st_size / 1e6
+    artifact_path, model_id = resolve_artifact(args)
+    files = artifact_files(artifact_path)
+    size_mb = sum(p.stat().st_size for p in files) / 1e6
 
     rule(f"Real open model: {model_id}  ({size_mb:.1f} MB of real weights)")
-    base_hash = sha256_file(weights_path)
-    print("weights file      :", weights_path)
-    print("REAL weights_hash :", base_hash)
+    base_hash = sha256_artifact(artifact_path)
+    print("artifact path     :", artifact_path)
+    print("artifact files    :", len(files))
+    print("REAL artifact hash:", base_hash)
     print("license           :", args.license)
     print("NOTE: the base is public, so this protects integrity + license +")
     print("      derivative custody, not secrecy. Attestation below is the software")
@@ -200,10 +242,10 @@ def main() -> int:
     rule("Step 4 - License is a technical release condition")
     print("release_terms.license =", base.release_terms.license)
     if args.infer:
-        if args.local:
-            print("  (--infer needs a --model repo id for the tokenizer; skipping with --local)")
+        if artifact_path.is_file():
+            print("  (--infer needs a complete model directory; skipping single-file artifact)")
         else:
-            run_inference(model_id)
+            run_inference(artifact_path)
 
     # ---- Step 5: fine-tune -> the DERIVATIVE is the real asset ---------------
     rule("Step 5 - Fine-tune: the derivative weights get their own custody")
@@ -231,7 +273,7 @@ def main() -> int:
 
     # ---- Step 7: integrity, made concrete -----------------------------------
     rule("Step 7 - A silently tampered fork is caught by the hash")
-    tampered = sha256_file(weights_path, flip_first_byte=True)
+    tampered = sha256_artifact(artifact_path, flip_first_byte=True)
     print("certified weights_hash :", base_hash)
     print("tampered-fork hash     :", tampered)
     print("tampered matches manifest? :", tampered == base.weights_hash)

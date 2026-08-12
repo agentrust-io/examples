@@ -183,5 +183,6 @@ jobs:
 
       - name: Run the model-signing provenance example
         run: |
-          python -m pip install "weight-custody-manifest[model-signing]>=0.21.0"
+          python -m pip install pytest "weight-custody-manifest[model-signing]>=0.21.0"
           python provenance_model_signing.py
+          python -m pytest -q test_real_open_model_artifact.py test_real_lora_custody.py

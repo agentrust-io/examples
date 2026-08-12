@@ -26,6 +26,9 @@ import tempfile
 from typing import Iterable
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from model_signing import signing as model_signing
 
 from wcm import (
     Ed25519Signer,
@@ -35,13 +38,37 @@ from wcm import (
     WeightCustodyManifest,
     generate_ed25519,
     generate_transport_keypair,
+    model_signing_digest,
     open_sealed,
     verify_manifest,
+    verify_provenance,
 )
 
 from real_open_model import artifact_files, build_manifest, resolve_artifact, sha256_artifact
 
 FORMAT = "wcm-encrypted-derivative/v1"
+
+
+def sign_artifact(root: pathlib.Path, output: pathlib.Path) -> tuple[str, pathlib.Path, pathlib.Path]:
+    """Create a detached OpenSSF signature, retaining no private signing key."""
+    signature_path = output / "adapter.model-signing.sig"
+    public_key_path = output / "adapter.model-signing.pub.pem"
+    key = ec.generate_private_key(ec.SECP256R1())
+    public_key_path.write_bytes(key.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    ))
+    with tempfile.TemporaryDirectory(prefix="wcm-model-signing-") as temp:
+        private_key_path = pathlib.Path(temp) / "signer.key"
+        private_key_path.write_bytes(key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ))
+        model_signing.Config().use_elliptic_key_signer(
+            private_key=private_key_path
+        ).sign(root, signature_path)
+    return model_signing_digest(root), signature_path, public_key_path
 
 
 def _relative_files(root: pathlib.Path) -> Iterable[tuple[pathlib.Path, str]]:
@@ -193,6 +220,10 @@ def main() -> int:
     adapter_path = args.output / "adapter-plaintext"
     train_lora(base_path, adapter_path, steps=args.steps)
 
+    provenance_digest, provenance_signature, provenance_public_key = sign_artifact(
+        adapter_path, args.output
+    )
+
     key = AESGCM.generate_key(bit_length=256)
     envelope = encrypt_and_remove_staging(adapter_path, key)
     envelope_path = args.output / "adapter.encrypted.json"
@@ -204,7 +235,7 @@ def main() -> int:
     # evidence; the identical manifest/KBS path is fed hardware evidence later.
     builder, custodian = generate_ed25519(), generate_ed25519()
     serving = "sha256:" + hashlib.sha256(b"wcm-local-lora-serving-stack-v1").hexdigest()
-    manifest = WeightCustodyManifest.model_validate(build_manifest(
+    manifest_doc = build_manifest(
         weights_hash=envelope["artifact_digest"],
         license_text="Apache-2.0 + OPAQUE-private-derivative",
         serving=serving,
@@ -213,7 +244,16 @@ def main() -> int:
         derivatives="none",
         derived_from=base_digest,
         rights_holder={"base": model_id, "derivative": "OPAQUE"},
-    ))
+    )
+    manifest_doc["provenance"] = {
+        "model_signing": {
+            "method": "openssf-model-signing",
+            "signed_digest": provenance_digest,
+            "transparency": "local-key; publication pending",
+            "signer": "opaque-wcm-builder",
+        }
+    }
+    manifest = WeightCustodyManifest.model_validate(manifest_doc)
     manifest = manifest.with_signatures([
         Ed25519Signer(builder).sign(
             manifest.unsigned_dict(), role="builder", signer="opaque-wcm-builder"
@@ -260,11 +300,22 @@ def main() -> int:
     print("encrypted artifact:", envelope_path)
     print("signed manifest  :", manifest_path)
     print("verification keys:", verification_keys_path)
+    print("OpenSSF signature:", provenance_signature)
+    print("OpenSSF public key:", provenance_public_key)
     print("KBS release      : sealed to ephemeral transport key (software evidence tier)")
 
     with tempfile.TemporaryDirectory(prefix="wcm-lora-") as temp:
         verified = pathlib.Path(temp) / "verified-adapter"
         decrypt_artifact(envelope, released_key, verified)
+        provenance = verify_provenance(
+            manifest,
+            verified,
+            provenance_signature,
+            public_key=provenance_public_key,
+        )
+        if not provenance.verified:
+            raise RuntimeError(f"OpenSSF provenance verification failed: {provenance.reason}")
+        print("OpenSSF provenance: verified against decrypted exact artifact")
         print("verified local derivative before load:", verified)
         if args.infer:
             print("model output:", repr(run_inference(base_path, verified)))

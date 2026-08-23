@@ -6,14 +6,20 @@ import base64
 import hashlib
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-
 ROOT = Path(__file__).parent
+
+
+@dataclass(frozen=True)
+class TrustedSigner:
+    issuer: str
+    public_key: Ed25519PublicKey
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -46,17 +52,25 @@ def receipt_hash(receipt: dict[str, Any]) -> str:
     return sha256_ref(receipt)
 
 
-def load_trusted_keys(path: Path = ROOT / "trusted-keys.json") -> dict[str, Ed25519PublicKey]:
+def load_trusted_keys(path: Path = ROOT / "trusted-keys.json") -> dict[str, TrustedSigner]:
     data = json.loads(path.read_text())
     keys = {}
     for key_id, key in data["controller_signers"].items():
-        keys[key_id] = Ed25519PublicKey.from_public_bytes(b64url_decode(key["public_key_b64url"]))
+        keys[key_id] = TrustedSigner(
+            issuer=key["issuer"],
+            public_key=Ed25519PublicKey.from_public_bytes(
+                b64url_decode(key["public_key_b64url"])
+            ),
+        )
     return keys
 
 
-def verify_fixture(path: Path, trusted_keys: dict[str, Ed25519PublicKey] | None = None) -> dict[str, Any]:
+def verify_fixture(
+    path: Path, trusted_keys: dict[str, TrustedSigner] | None = None
+) -> dict[str, Any]:
     fixture = json.loads(path.read_text())
-    trusted_keys = trusted_keys or load_trusted_keys()
+    if trusted_keys is None:
+        trusted_keys = load_trusted_keys()
 
     trace = fixture["trace"]
     action = fixture["action"]
@@ -74,7 +88,11 @@ def verify_fixture(path: Path, trusted_keys: dict[str, Ed25519PublicKey] | None 
     final_state = "absent"
     final_verdict = None
 
-    for receipt in sorted(receipts, key=lambda r: r["sequence"]):
+    for expected_sequence, receipt in enumerate(
+        sorted(receipts, key=lambda r: r["sequence"]), start=1
+    ):
+        if receipt["sequence"] != expected_sequence:
+            return {"result": "invalid", "receipt_state": "sequence_mismatch"}
         if receipt["call_id"] != trace["cmcp_call_id"]:
             return {"result": "invalid", "receipt_state": "call_id_mismatch"}
         if receipt["trace_id"] != trace["trace_id"]:
@@ -84,16 +102,21 @@ def verify_fixture(path: Path, trusted_keys: dict[str, Ed25519PublicKey] | None 
         if receipt.get("prev_receipt_hash") != previous_hash:
             return {"result": "invalid", "receipt_state": "chain_mismatch"}
 
-        key = trusted_keys.get(receipt["issuer_key_id"])
-        if key is None:
+        signer = trusted_keys.get(receipt["issuer_key_id"])
+        if signer is None:
             return {"result": "invalid", "receipt_state": "untrusted"}
+        if receipt.get("issuer") != signer.issuer:
+            return {"result": "invalid", "receipt_state": "issuer_mismatch"}
 
         signature = receipt["signature"]
         if not signature.startswith("ed25519:"):
             return {"result": "invalid", "receipt_state": "signature_format"}
 
         try:
-            key.verify(b64url_decode(signature.removeprefix("ed25519:")), canonical_bytes(receipt_preimage(receipt)))
+            signer.public_key.verify(
+                b64url_decode(signature.removeprefix("ed25519:")),
+                canonical_bytes(receipt_preimage(receipt)),
+            )
         except InvalidSignature:
             return {"result": "invalid", "receipt_state": "invalid_signature"}
 

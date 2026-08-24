@@ -1,6 +1,6 @@
 huggingface_hub==1.27.0
 safetensors==0.8.0
-transformers==5.15.0
+transformers==5.15.1
 peft==0.20.0
 accelerate==1.14.0
 torch==2.13.0

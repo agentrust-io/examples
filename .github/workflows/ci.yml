@@ -42,6 +42,27 @@ jobs:
       - name: Run credit engine tests
         run: python -m unittest discover -s tests -v
 
+  agentic-commerce-accountability:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agentic-commerce-accountability
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Run accountability tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Regenerate and compare committed fixtures
+        run: |
+          python generate_fixtures.py
+          git diff --exit-code -- fixtures
+
   industrial-embodied-ai:
     runs-on: ubuntu-latest
     defaults:

@@ -16,6 +16,7 @@ adoption, and project governance.
 
 | Example | What it shows | Platform | Compliance |
 |---|---|---|---|
+| `agentic-commerce-accountability/` | Delegated spend authority linked to checkout, policy, runtime evidence and receipt, with offline tamper detection | Software-only (offline) | Accountability, least authority |
 | `ca2a-delegation/` | Agent-to-agent delegation with cA2A: attenuated credit-workflow chain, offline verification, and a rejected scope escalation | Software-only (offline) | Separation of duties, least authority |
 | `embodied-action-receipts/` | Fixture-style offline verification for embodied action receipts: accepted chain, missing receipt, signature mismatch and valid controller rejection | Software-only fixtures | TRACE action-receipt evidence boundary |
 | `financial-services/` | Corporate credit risk agent: six-step assessment with CDD, exposure and IFRS 9 guardrails on the write | SEV-SNP / TDX | EU AI Act Art. 9/12, CRR Art. 395, EBA/GL/2020/06, EU AML, DORA Art. 9 |

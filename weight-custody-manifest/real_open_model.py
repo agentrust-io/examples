@@ -27,19 +27,24 @@ import argparse
 import hashlib
 import os
 import pathlib
+import shutil
+import tempfile
 
 from wcm import (
+    artifact_digest,
+    artifact_files,
+    combine_shares,  # noqa: F401 - kept importable for the curious
     Ed25519Signer,
     EnclaveSession,
-    KeyBrokerService,
-    SoftwareProvider,
-    VerificationContext,
-    WeightCustodyManifest,
-    combine_shares,  # noqa: F401 - kept importable for the curious
     generate_ed25519,
     is_root,
+    KeyBrokerService,
+    manifest_identity,
+    SoftwareProvider,
+    VerificationContext,
     verify_lineage,
     verify_manifest,
+    WeightCustodyManifest,
 )
 
 
@@ -47,47 +52,54 @@ def rule(title: str) -> None:
     print(f"\n{'=' * 72}\n{title}\n{'=' * 72}")
 
 
-def artifact_files(path: pathlib.Path) -> list[pathlib.Path]:
-    """Return the deterministic file inventory bound by the manifest.
+def sha256_artifact(path: pathlib.Path) -> str:
+    """Hash a file or a complete model directory.
 
-    A directory snapshot includes weights, shard indexes, configuration, and
-    tokenizer assets. Hidden Hugging Face cache metadata is deliberately not
-    part of the serving artifact.
+    A thin wrapper over ``wcm.artifact_digest``, which is where this recipe
+    lives as of weight-custody-manifest 0.27.0. It used to be implemented here,
+    and copied into two Marketplace integrations, with nothing keeping the three
+    in step; a digest recipe that exists three times stops being one recipe, and
+    the drift shows up as ``weights_hash`` not matching, which reads as tampered
+    weights.
+
+    ``follow_symlinks=True`` because a Hugging Face snapshot directory is a
+    symlink tree: ``snapshot_download`` populates ``snapshots/<revision>/`` with
+    links into a content-addressed ``blobs/`` directory in the same cache. The
+    SDK refuses symlinks by default, which is right for an artifact somebody
+    handed you and wrong for a cache you just populated yourself.
     """
-    if path.is_file():
-        return [path]
-    files = [
-        p for p in path.rglob("*")
-        if p.is_file() and ".cache" not in p.relative_to(path).parts
-    ]
-    if not files:
-        raise ValueError(f"model artifact contains no files: {path}")
-    return sorted(files, key=lambda p: p.relative_to(path).as_posix())
+    return str(artifact_digest(path, follow_symlinks=True))
 
 
-def sha256_artifact(path: pathlib.Path, *, flip_first_byte: bool = False) -> str:
-    """Hash a file or complete model directory with names and boundaries.
+def tampered_digest(path: pathlib.Path) -> str:
+    """The digest a silently modified fork of these weights would have.
 
-    Length-prefixing the relative path and content prevents two different
-    directory layouts from producing the same concatenated byte stream.
+    Copies the artifact, flips one byte, hashes the copy and throws it away, so
+    the model you downloaded is never written to. There is a test asserting the
+    original bytes are unchanged afterwards.
+
+    This used to be a ``flip_first_byte`` flag threaded through the hash
+    function, which avoided the copy but meant maintaining a second hashing path
+    that existed only to fake tampering. Copying costs disk on a demo that has
+    already downloaded the model, and buys a demonstration where the bytes
+    genuinely differ rather than one where the arithmetic was nudged.
     """
-    root = path if path.is_dir() else path.parent
-    h = hashlib.sha256()
-    flipped = False
-    for file_path in artifact_files(path):
-        relative = file_path.relative_to(root).as_posix().encode("utf-8")
-        h.update(len(relative).to_bytes(8, "big"))
-        h.update(relative)
-        h.update(file_path.stat().st_size.to_bytes(8, "big"))
-        with file_path.open("rb") as fh:
-            for chunk in iter(lambda: fh.read(1 << 20), b""):
-                if flip_first_byte and not flipped and chunk:
-                    changed = bytearray(chunk)
-                    changed[0] ^= 0xFF
-                    chunk = bytes(changed)
-                    flipped = True
-                h.update(chunk)
-    return "sha256:" + h.hexdigest()
+    with tempfile.TemporaryDirectory() as tmp:
+        staged = pathlib.Path(tmp) / "fork"
+        if path.is_dir():
+            shutil.copytree(path, staged, symlinks=False)
+        else:
+            staged.mkdir()
+            shutil.copy2(path, staged / path.name)
+
+        target = artifact_files(staged, follow_symlinks=True)[0]
+        data = bytearray(target.read_bytes())
+        if not data:
+            raise ValueError(f"cannot tamper an empty file: {target}")
+        data[0] ^= 0xFF
+        target.write_bytes(bytes(data))
+
+        return str(artifact_digest(staged, follow_symlinks=True))
 
 
 def run_inference(verified_path: pathlib.Path) -> None:
@@ -188,7 +200,7 @@ def main() -> int:
     args = ap.parse_args()
 
     artifact_path, model_id = resolve_artifact(args)
-    files = artifact_files(artifact_path)
+    files = artifact_files(artifact_path, follow_symlinks=True)
     size_mb = sum(p.stat().st_size for p in files) / 1e6
 
     rule(f"Real open model: {model_id}  ({size_mb:.1f} MB of real weights)")
@@ -224,7 +236,14 @@ def main() -> int:
 
     # ---- Step 2: attestation-gated load (only the certified stack) ----------
     rule("Step 2 - Attestation gate (load only the certified serving stack)")
-    kbs = KeyBrokerService({base.weights_hash: b"loading-key-not-a-secret-for-open-weights"})
+    kbs = KeyBrokerService(
+        {base.weights_hash: b"loading-key-not-a-secret-for-open-weights"},
+        # weight-custody-manifest 0.27.0 refuses to release unless the manifest's
+        # identity is pinned out of band. Without it, a caller could present an
+        # attacker-authored policy that reused a weights hash the broker already
+        # held and be released against terms nobody agreed.
+        trusted_manifest_identities=[manifest_identity(base)],
+    )
     challenge = kbs.issue_challenge()
     evidence = SoftwareProvider().produce(
         challenge, serving_image_measurement=serving, gpu_measurement="nvidia-rim:demo-golden")
@@ -273,7 +292,7 @@ def main() -> int:
 
     # ---- Step 7: integrity, made concrete -----------------------------------
     rule("Step 7 - A silently tampered fork is caught by the hash")
-    tampered = sha256_artifact(artifact_path, flip_first_byte=True)
+    tampered = tampered_digest(artifact_path)
     print("certified weights_hash :", base_hash)
     print("tampered-fork hash     :", tampered)
     print("tampered matches manifest? :", tampered == base.weights_hash)

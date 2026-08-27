@@ -30,15 +30,16 @@ from wcm import (
     CompositeEvidence,
     CpuQuote,
     Ed25519Signer,
+    generate_ed25519,
+    generate_transport_keypair,
     JsonQuoteParser,
     KeyBrokerService,
+    manifest_identity,
+    open_sealed,
     QuoteVerifier,
     SealError,
     TrustStore,
     WeightCustodyManifest,
-    generate_ed25519,
-    generate_transport_keypair,
-    open_sealed,
 )
 
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -154,6 +155,11 @@ def main() -> int:
         now=lambda: NOW,
         cpu_quote_verifier=QuoteVerifier(JsonQuoteParser(), trust),
         require_channel_binding=True,
+        # weight-custody-manifest 0.27.0 refuses to release unless the manifest's
+        # identity is pinned out of band. Without it, a caller could present an
+        # attacker-authored policy that reused a weights hash the broker already
+        # held and be released against terms nobody agreed.
+        trusted_manifest_identities=[manifest_identity(manifest)],
     )
 
     enclave_priv, enclave_pub = generate_transport_keypair()

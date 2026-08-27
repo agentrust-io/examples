@@ -22,11 +22,12 @@ from datetime import datetime, timedelta, timezone
 from wcm import (
     Ed25519Signer,
     EnclaveSession,
+    generate_ed25519,
     KeyBrokerService,
     KeyWipedError,
+    manifest_identity,
     SoftwareProvider,
     WeightCustodyManifest,
-    generate_ed25519,
 )
 
 
@@ -88,7 +89,14 @@ def main() -> None:
         Ed25519Signer(custodian).sign(manifest.unsigned_dict(), role="custodian", signer=org),
     ])
 
-    kbs = KeyBrokerService({weights_hash: b"the-weight-decryption-key"})
+    kbs = KeyBrokerService(
+        {weights_hash: b"the-weight-decryption-key"},
+        # weight-custody-manifest 0.27.0 refuses to release unless the manifest's
+        # identity is pinned out of band. Without it, a caller could present an
+        # attacker-authored policy that reused a weights hash the broker already
+        # held and be released against terms nobody agreed.
+        trusted_manifest_identities=[manifest_identity(manifest)],
+    )
 
     # -- Moment 1: REFUSE ------------------------------------------------------
     banner("1. A tampered enclave asks for the key. It gets nothing.")

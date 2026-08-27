@@ -22,11 +22,12 @@ from datetime import datetime, timedelta, timezone
 from wcm import (
     Ed25519Signer,
     EnclaveSession,
+    generate_ed25519,
     KeyBrokerService,
     KeyWipedError,
+    manifest_identity,
     SoftwareProvider,
     WeightCustodyManifest,
-    generate_ed25519,
 )
 
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -96,7 +97,15 @@ def main() -> int:
     key = b"the-weight-decryption-key"
 
     rule("Step 1 - The model is attested, released, and serving")
-    kbs = KeyBrokerService({weights_hash: key}, now=lambda: NOW)
+    kbs = KeyBrokerService(
+        {weights_hash: key},
+        now=lambda: NOW,
+        # weight-custody-manifest 0.27.0 refuses to release unless the manifest's
+        # identity is pinned out of band. Without it, a caller could present an
+        # attacker-authored policy that reused a weights hash the broker already
+        # held and be released against terms nobody agreed.
+        trusted_manifest_identities=[manifest_identity(manifest)],
+    )
     decision = _release(kbs, manifest, serving)
     print("released              :", decision.released)
     session = EnclaveSession.from_release(manifest, decision, now=lambda: NOW)

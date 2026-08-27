@@ -29,17 +29,22 @@ assembled key.
 from __future__ import annotations
 
 import hashlib
+import os
 
 from wcm import (
-    Ed25519Signer,
-    KeyBrokerService,
-    SoftwareProvider,
-    VerificationContext,
-    WeightCustodyManifest,
+    BytearrayMemoryRange,
     combine_shares,
+    Ed25519Signer,
     generate_ed25519,
+    KeyBrokerService,
+    manifest_identity,
+    memory_sweep_public_key,
+    run_memory_sweep,
+    SoftwareProvider,
     split_secret,
+    VerificationContext,
     verify_manifest,
+    WeightCustodyManifest,
 )
 
 
@@ -138,18 +143,47 @@ def main() -> int:
     # The self-custody KBS holds NO weight key (empty entry): the gate proves the
     # enclave is the builder-measured release coordinator; the key comes from the
     # quorum, not from the KBS.
-    kbs = KeyBrokerService({weights_hash: b""})
+    # The hostile-owner posture requires a memory-fingerprint challenge, and since
+    # weight-custody-manifest 0.27.0 that means a SIGNED sweep: the runtime writes
+    # unpredictable nonce-derived data across its declared range, reads it back in
+    # a different nonce-derived order, and signs the transcript. The broker needs
+    # the sweep key to check it. An unsigned fingerprint is refused rather than
+    # accepted on trust, which is the point: an aliasing attack that can fake the
+    # readback can also fake an unsigned claim about it.
+    sweep_key = generate_ed25519().private_key
+
+    kbs = KeyBrokerService(
+        {weights_hash: b""},
+        # 0.27.0 also refuses to release unless the manifest's identity is pinned
+        # out of band. Without it, a caller could present an attacker-authored
+        # policy that reused a weights hash the broker already held and be
+        # released against terms nobody agreed.
+        trusted_manifest_identities=[manifest_identity(manifest)],
+        memory_fingerprint_public_key_b64url=memory_sweep_public_key(sweep_key),
+    )
     challenge = kbs.issue_challenge()
     evidence = SoftwareProvider().produce(
         challenge,
         serving_image_measurement=serving,
         gpu_measurement="nvidia-rim:demo-golden",
-        include_memory_fingerprint=True,  # mandatory in the hostile-owner posture
+    )
+    evidence = evidence.model_copy(
+        update={
+            "memory_fingerprint": run_memory_sweep(
+                # A stand-in for the enclave's real DRAM range. The algorithm is
+                # the same; what a bytearray cannot do is prove anything about
+                # physical memory, which is why WCM issue #79 is still open.
+                BytearrayMemoryRange(64 * 4096),
+                challenge_nonce=challenge.nonce,
+                signing_key=sweep_key,
+                sweep_secret=os.urandom(32),
+            )
+        }
     )
     decision = kbs.verify_and_release(manifest, evidence)
     print("attestation gate passed   :", decision.released)
     if not decision.released:
-        for c in decision.failures():
+        for c in decision.failures:
             print("  failed:", c.name, "-", c.detail)
         return 1
     print("each party checks this attestation before contributing its share.")

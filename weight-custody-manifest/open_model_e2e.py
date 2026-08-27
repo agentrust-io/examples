@@ -35,17 +35,18 @@ from __future__ import annotations
 import hashlib
 
 from wcm import (
+    Ed25519Signer,
     EnclaveSession,
+    generate_ed25519,
+    is_root,
     KeyBrokerService,
     KeyWipedError,
+    manifest_identity,
     SoftwareProvider,
     VerificationContext,
-    WeightCustodyManifest,
-    generate_ed25519,
-    Ed25519Signer,
-    is_root,
     verify_lineage,
     verify_manifest,
+    WeightCustodyManifest,
 )
 
 
@@ -170,7 +171,14 @@ def main() -> None:
 
     # ---- Step 2: attestation-gated load -------------------------------------
     rule("Step 2 - Attestation gate: only load the CERTIFIED serving stack")
-    kbs = KeyBrokerService({base.weights_hash: b"loading-key-protects-no-secret-here"})
+    kbs = KeyBrokerService(
+        {base.weights_hash: b"loading-key-protects-no-secret-here"},
+        # weight-custody-manifest 0.27.0 refuses to release unless the manifest's
+        # identity is pinned out of band. Without it, a caller could present an
+        # attacker-authored policy that reused a weights hash the broker already
+        # held and be released against terms nobody agreed.
+        trusted_manifest_identities=[manifest_identity(base)],
+    )
     challenge = kbs.issue_challenge()
     evidence = SoftwareProvider().produce(  # a REAL enclave would produce a hardware quote
         challenge,

@@ -25,12 +25,13 @@ import hashlib
 from wcm import (
     Ed25519Signer,
     EnclaveSession,
+    generate_ed25519,
     KeyBrokerService,
+    manifest_identity,
     SoftwareProvider,
     VerificationContext,
-    WeightCustodyManifest,
-    generate_ed25519,
     verify_manifest,
+    WeightCustodyManifest,
 )
 
 
@@ -107,7 +108,14 @@ def main() -> int:
         return 1
 
     rule("Step 2 - Attestation gate: the decryption key releases only into the approved enclave")
-    kbs = KeyBrokerService({weights_hash: b"the-secret-weight-decryption-key"})
+    kbs = KeyBrokerService(
+        {weights_hash: b"the-secret-weight-decryption-key"},
+        # weight-custody-manifest 0.27.0 refuses to release unless the manifest's
+        # identity is pinned out of band. Without it, a caller could present an
+        # attacker-authored policy that reused a weights hash the broker already
+        # held and be released against terms nobody agreed.
+        trusted_manifest_identities=[manifest_identity(manifest)],
+    )
     challenge = kbs.issue_challenge()
     evidence = SoftwareProvider().produce(
         challenge, serving_image_measurement=serving, gpu_measurement="nvidia-rim:golden"

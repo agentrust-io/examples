@@ -36,6 +36,7 @@ from wcm import (
     SoftwareProvider,
     VerificationContext,
     WeightCustodyManifest,
+    artifact_files,
     generate_ed25519,
     generate_transport_keypair,
     model_signing_digest,
@@ -44,7 +45,7 @@ from wcm import (
     verify_provenance,
 )
 
-from real_open_model import artifact_files, build_manifest, resolve_artifact, sha256_artifact
+from real_open_model import build_manifest, resolve_artifact, sha256_artifact
 
 FORMAT = "wcm-encrypted-derivative/v1"
 
@@ -72,7 +73,7 @@ def sign_artifact(root: pathlib.Path, output: pathlib.Path) -> tuple[str, pathli
 
 
 def _relative_files(root: pathlib.Path) -> Iterable[tuple[pathlib.Path, str]]:
-    for path in artifact_files(root):
+    for path in artifact_files(root, follow_symlinks=True):
         yield path, path.relative_to(root).as_posix()
 
 

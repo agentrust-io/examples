@@ -183,34 +183,12 @@ jobs:
       - name: Install the WCM SDK from PyPI
         run: python -m pip install -r requirements.txt
 
-      - name: Run the 30-second refuse-and-wipe demo
-        run: python refuse_and_wipe.py
+      # One runner, discovered rather than listed, so a new demo is covered the
+      # day it lands. The list lived in this file and in nobody else's reach,
+      # which is why the SDK repository could not run these before cutting a
+      # release. It now calls the same script; see run_demos.py.
+      - name: Install the model-signing extra the provenance demo needs
+        run: python -m pip install "weight-custody-manifest[model-signing]>=0.27.0" pytest
 
-      - name: Run the end-to-end custody demo
-        run: python open_model_e2e.py
-
-      - name: Run the sovereign threshold demo
-        run: python sovereign_self_custody.py
-
-      - name: Replay a SEV-SNP quote offline
-        run: python snp_replay.py
-
-      - name: Run the feature examples
-        run: |
-          for s in closed_model_e2e multi_stage_byom transparency_log post_quantum channel_binding revocation_kill_switch quote_verification load_guard; do
-            echo "== $s =="
-            python "$s.py"
-          done
-
-      - name: Run the model-signing provenance example
-        run: |
-          python -m pip install "weight-custody-manifest[model-signing]>=0.27.0"
-          python provenance_model_signing.py
-
-      # These existed and were never run by any workflow. They cover the artifact
-      # digest, which is the value a manifest binds, so a change to it that no
-      # demo happens to exercise would otherwise land unnoticed.
-      - name: Run the offline unit tests
-        run: |
-          python -m pip install pytest
-          python -m pytest . -q
+      - name: Run every offline demo and the unit tests
+        run: python run_demos.py

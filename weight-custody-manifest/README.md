@@ -90,7 +90,31 @@ python real_open_model.py
 
 ## What runs in CI
 
-Every offline example runs in CI against the published PyPI package and must exit 0: `refuse_and_wipe`, the closed/open e2e pair, `multi_stage_byom`, `revocation_kill_switch`, `channel_binding`, `sovereign_self_custody`, `transparency_log`, `post_quantum`, `quote_verification`, `load_guard`, `snp_replay`, and `provenance_model_signing` (with the `[model-signing]` extra). Only `real_open_model.py` is excluded (it downloads a model).
+`run_demos.py` runs every offline example and the unit tests, and must exit 0.
+
+```bash
+python run_demos.py          # run everything
+python run_demos.py --list   # show the plan, including what is skipped and why
+```
+
+Demos are **discovered, not listed**. Every top-level module that is not a test
+gets run, so a new demo is covered the day it lands. A demo that genuinely
+cannot run offline goes in `REQUIRES_NETWORK` with a reason, which keeps the
+exclusion visible on every run rather than buried in a workflow file. Two are
+excluded today: `real_open_model.py` downloads a model, and `real_lora_custody.py`
+trains a LoRA adapter.
+
+The same script is called from two places, and that is the point. This
+repository runs it against the published PyPI package, which catches a demo that
+somebody broke. The SDK repository runs it against a wheel built from the branch
+under review, which catches an SDK change that breaks the demos.
+
+That second one is why this exists. `weight-custody-manifest` 0.27.0 shipped two
+correct security changes and both broke demos here: key release began refusing
+manifests whose identity was not pinned out of band, and the memory-fingerprint
+challenge began requiring a signed sweep. Six demos that passed on 0.26.0 failed
+on 0.27.0, and nothing caught it, because the SDK had no way to run these and
+this repository only ever tested against what was already published.
 
 ## Reference
 

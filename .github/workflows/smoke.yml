@@ -56,7 +56,11 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install cmcp-runtime httpx
+        # cmcp-runtime is the subject of these smoke tests and stays resolved
+        # from PyPI; the HTTP client driving them is pinned.
+        run: |
+          pip install --require-hashes -r requirements/smoke-harness.txt
+          pip install cmcp-runtime
 
       - name: Start mock MCP server
         run: python ${{ matrix.dir }}/server/mock_mcp_server.py &

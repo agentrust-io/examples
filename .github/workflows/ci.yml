@@ -24,7 +24,7 @@ jobs:
           done
       - name: Validate YAML files
         run: |
-          pip install pyyaml -q
+          pip install -q --require-hashes -r requirements/yaml-lint.txt
           find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | while read -r f; do
             python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" "$f" && echo "OK: $f" || exit 1
           done
@@ -82,7 +82,7 @@ jobs:
           cache-dependency-path: industrial-embodied-ai/requirements.txt
 
       - name: Install controller test dependencies
-        run: python -m pip install cryptography
+        run: python -m pip install --require-hashes -r ../requirements/controller-tests.txt
 
       - name: Run controller tests
         run: python -m unittest discover -s tests -v
@@ -191,7 +191,11 @@ jobs:
       # which is why the SDK repository could not run these before cutting a
       # release. It now calls the same script; see run_demos.py.
       - name: Install the model-signing extra the provenance demo needs
-        run: python -m pip install "weight-custody-manifest[model-signing]>=0.27.0" pytest
+        # The runner is pinned; the SDK these demos exercise stays resolved
+        # from PyPI, which is what makes them a check on the release.
+        run: |
+          python -m pip install --require-hashes -r ../requirements/wcm-harness.txt
+          python -m pip install "weight-custody-manifest[model-signing]>=0.27.0"
 
       - name: Run every offline demo and the unit tests
         run: python run_demos.py

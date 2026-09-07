@@ -66,6 +66,26 @@ jobs:
           python generate_fixtures.py
           git diff --exit-code -- fixtures
 
+  released-ucp-accountability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the locked released-UCP verification image
+        run: >-
+          docker build --no-cache --tag released-ucp-accountability:ci
+          agentic-commerce-accountability/released_ucp
+
+      - name: Run the demo and checks without network or elevated privileges
+        run: >-
+          docker run --rm --network none --read-only --cap-drop ALL
+          --security-opt no-new-privileges --pids-limit 128
+          --memory 1g --cpus 2 --tmpfs /tmp:rw,nosuid,nodev,size=256m
+          released-ucp-accountability:ci
+
   industrial-embodied-ai:
     runs-on: ubuntu-latest
     defaults:

@@ -1,5 +1,10 @@
 # Agentic Commerce Accountability
 
+For released UCP schema validation, authenticated HTTP artifacts, one-purchase
+authority, and retry/concurrency tests, see the separate
+[released-UCP verification harness](released_ucp/README.md). The illustrative
+example below remains intentionally unchanged in behavior.
+
 This runnable example asks whether an auditor can connect a completed purchase
 to the authority the user granted, the exact request evaluated by policy, and
 the runtime evidence for that decision.

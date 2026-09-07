@@ -19,13 +19,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate JSON files
         run: |
-          find . -name "*.json" -not -path "./.git/*" | while read f; do
+          find . -name "*.json" -not -path "./.git/*" | while read -r f; do
             python3 -m json.tool "$f" > /dev/null && echo "OK: $f" || exit 1
           done
       - name: Validate YAML files
         run: |
           pip install pyyaml -q
-          find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | while read f; do
+          find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | while read -r f; do
             python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" "$f" && echo "OK: $f" || exit 1
           done
 

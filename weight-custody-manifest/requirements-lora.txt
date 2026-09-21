@@ -1,4 +1,4 @@
-huggingface_hub==1.30.0
+huggingface_hub==1.32.0
 safetensors==0.8.0
 transformers==5.17.0
 peft==0.20.0

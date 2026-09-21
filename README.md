@@ -6,6 +6,8 @@
 
 # agentrust-io Examples
 
+Community updates and contributor highlights: [AgenTrust on LinkedIn](https://www.linkedin.com/company/agentrust-io/).
+
 End-to-end integration examples showing cMCP, Agent Manifest, and TRACE working together across deployment scenarios. Each example is self-contained and runnable on a fresh cloud VM. Running them shows how the projects compose: cMCP enforces policy at the tool call boundary, Agent Manifest carries the identity and capability declaration, cA2A attenuates authority at the agent-to-agent boundary, and TRACE emits a signed Trust Record for every tool invocation so you can see what the full audit trail looks like in practice.
 
 Project support is recognized in [SPONSORS.md](SPONSORS.md). Sponsorship is

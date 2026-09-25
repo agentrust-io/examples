@@ -30,6 +30,8 @@ from wcm import (
     WeightCustodyManifest,
 )
 
+from _mock_attestation import waive_mock_verification
+
 
 def sha256(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
@@ -83,7 +85,7 @@ def main() -> None:
     approved = sha256(b"vllm-0.6.3 + policy-bundle-v2 (the builder-signed serving stack)")
 
     doc = build_manifest(weights_hash, approved, org)
-    manifest = WeightCustodyManifest.model_validate(doc)
+    manifest = WeightCustodyManifest.model_validate(waive_mock_verification(doc))
     manifest = manifest.with_signatures([
         Ed25519Signer(builder).sign(manifest.unsigned_dict(), role="builder", signer=org),
         Ed25519Signer(custodian).sign(manifest.unsigned_dict(), role="custodian", signer=org),

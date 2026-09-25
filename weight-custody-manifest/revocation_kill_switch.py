@@ -30,6 +30,8 @@ from wcm import (
     WeightCustodyManifest,
 )
 
+from _mock_attestation import waive_mock_verification
+
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 LIVE_KEY_ID = "vcek:live-0001"
 
@@ -74,7 +76,7 @@ def build_manifest(weights_hash: str, serving: str):
         },
     }
     b, c = generate_ed25519(), generate_ed25519()
-    m = WeightCustodyManifest.model_validate(doc)
+    m = WeightCustodyManifest.model_validate(waive_mock_verification(doc))
     return m.with_signatures([
         Ed25519Signer(b).sign(m.unsigned_dict(), role="builder", signer="lab"),
         Ed25519Signer(c).sign(m.unsigned_dict(), role="custodian", signer="customer"),

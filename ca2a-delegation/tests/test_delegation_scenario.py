@@ -8,7 +8,9 @@ EXAMPLE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EXAMPLE_DIR))
 
 import delegation_scenario as scenario  # noqa: E402
+from ca2a_runtime.delegation import DelegationCredential, new_keypair  # noqa: E402
 from ca2a_runtime.delegation.credential import ScopeEscalation  # noqa: E402
+from ca2a_runtime.errors import UntrustedDelegationRoot  # noqa: E402
 
 
 class DelegationScenarioTests(unittest.TestCase):
@@ -39,6 +41,22 @@ class DelegationScenarioTests(unittest.TestCase):
         with self.assertRaises(ScopeEscalation) as ctx:
             scenario.verify(chain)
         self.assertEqual(getattr(ctx.exception, "code", None), "SCOPE_ESCALATION")
+
+    def test_chain_from_an_untrusted_root_is_rejected(self) -> None:
+        # Signatures, continuity and attenuation all hold on a chain an
+        # attacker mints from a key of their own. Only the root check stops it.
+        attacker_priv, attacker_pub = new_keypair()
+        _, agent_pub = new_keypair()
+        forged = DelegationCredential(
+            credential_id="credit-cred-0",
+            issuer=attacker_pub,
+            subject=agent_pub,
+            scope=frozenset({scenario.CAP_WRITE_REPORT}),
+            depth=0,
+            parent_id=None,
+        ).sign(attacker_priv)
+        with self.assertRaises(UntrustedDelegationRoot):
+            scenario.verify([forged])
 
     def test_chain_document_shape(self) -> None:
         doc = scenario.as_chain_document(scenario.build_credit_chain())

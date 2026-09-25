@@ -144,10 +144,12 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: embodied-action-receipts/requirements.txt
+          cache-dependency-path: requirements/receipts-tests.txt
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        # The job cwd is embodied-action-receipts (defaults above), so the
+        # lock is one level up.
+        run: python -m pip install --require-hashes -r ../requirements/receipts-tests.txt
 
       - name: Verify embodied-action receipt fixtures
         run: python -m unittest discover -s tests -v

@@ -21,14 +21,30 @@ def verify(bundle: dict[str, Any]) -> list[str]:
     decision = bundle["policy_decision"]
     evidence = bundle["runtime_evidence"]
     receipt = bundle["purchase_receipt"]
-    if request["operation"] not in grant["allowed_operations"]:
+    # A string here would turn membership into a substring test.
+    operations = grant["allowed_operations"]
+    merchants = grant["allowed_merchants"]
+    if not isinstance(operations, list) or not isinstance(merchants, list):
+        errors.append("authority grant allow-lists are not lists")
+        operations, merchants = [], []
+    if request["operation"] not in operations:
         errors.append("operation is outside delegated authority")
     if request["currency"] != grant["currency"]:
         errors.append("currency differs from delegated authority")
-    if request["merchant_id"] not in grant["allowed_merchants"]:
+    if request["merchant_id"] not in merchants:
         errors.append("merchant is outside delegated authority")
-    if request["amount_minor"] > grant["max_amount_minor"]:
+    amount = request["amount_minor"]
+    ceiling = grant["max_amount_minor"]
+    # bool is an int subclass; a negative or zero amount would pass the ceiling,
+    # and every amount compares false against a NaN ceiling.
+    if type(amount) is not int or amount <= 0:
+        errors.append("amount is not a positive integer in minor units")
+    elif type(ceiling) is not int:
+        errors.append("authority grant ceiling is not an integer")
+    elif amount > ceiling:
         errors.append("amount exceeds delegated authority")
+    if evidence["runtime_identity"] != grant["delegate"]:
+        errors.append("runtime is not the delegate named in the authority grant")
     if decision["request_digest"] != digest(request):
         errors.append("policy decision is not bound to the purchase request")
     if decision["authority_digest"] != digest(grant):

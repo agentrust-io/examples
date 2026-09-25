@@ -59,7 +59,7 @@ Now the bureau connector tries to grant itself write:risk-report ...
   reason: hop 2 scope exceeds parent grant
 ```
 
-The demo writes both chains to `chain-output/`. Verify either from the CLI, which checks the same four invariants:
+The demo writes both chains to `chain-output/`. Check either from the CLI. `ca2a verify-chain` in ca2a-runtime 0.2.0 takes no trusted root, so it checks invariants 1 to 4 below but not the root:
 
 ```bash
 ca2a verify-chain --chain chain-output/credit-delegation-chain.json
@@ -75,12 +75,13 @@ ca2a verify-chain --chain chain-output/escalation-attempt.json
 
 `verify_chain` fails on the first violation:
 
+0. **Trusted root**: the first hop's issuer is in `trusted_root_issuers` (`UNTRUSTED_DELEGATION_ROOT` otherwise). The demo passes the credit platform's key. Leave the argument out and `verify_chain` is structural only: a chain an attacker signs from a key of their own passes 1 to 4.
 1. **Signature** on every hop against the issuer's Ed25519 public key.
 2. **Continuity**: each hop's issuer is the previous hop's subject.
 3. **Attenuation**: each hop's scope is a subset of its parent's scope (`SCOPE_ESCALATION` otherwise).
 4. **Anti-replay / structure**: unique `credential_id`s, `parent_id` links to the previous hop, depth increments by one and stays within `max_depth`.
 
-Because the write authority is withheld at the first delegation, attenuation alone guarantees that no descendant, however many hops down, can write the risk report. That is separation of duties enforced by the credential, not by convention.
+Because the write authority is withheld at the first delegation, attenuation from a trusted root guarantees that no descendant, however many hops down, can write the risk report. That is separation of duties enforced by the credential, not by convention.
 
 ---
 

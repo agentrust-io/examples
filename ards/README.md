@@ -10,7 +10,7 @@ This directory shows how agentrust-io.com participates in the [Agentic Resource 
 
 ## The integration point
 
-ARDS `trustManifest.attestations` accepts any attestation type. TRACE-v0.2 is a **runtime governance attestation** — it proves an agent ran under a specific Cedar policy in a verified TEE, with a signed tool-call transcript, in one independently verifiable artifact.
+ARDS `trustManifest.attestations` accepts any attestation type. TRACE-v0.2 is a **runtime governance attestation**: it binds the Cedar policy an agent ran under and a signed tool-call transcript into one independently verifiable artifact. Only a record whose `trace.runtime` carries hardware attestation evidence also shows the run happened in a verified TEE; a `software-only` dev-mode record makes no TEE claim.
 
 ```json
 {

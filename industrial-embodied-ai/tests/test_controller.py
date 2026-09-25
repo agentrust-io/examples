@@ -92,6 +92,29 @@ class IndependentSafetyControllerTests(unittest.TestCase):
                 self.request(snapshot["state_token"], max_speed_mps=0.8)
             )
 
+    def test_non_finite_speed_is_rejected(self) -> None:
+        # NaN compares false against both bounds, so a range check alone lets
+        # it through. json.loads accepts a bare NaN, so it can arrive by wire.
+        for speed in (float("nan"), "nan", "NaN", float("inf"), "-inf"):
+            with self.subTest(speed=speed):
+                snapshot = self.controller.read_safety_state()
+                with self.assertRaisesRegex(
+                    SafetyRejected,
+                    "speed_exceeds_controller_limit",
+                ):
+                    self.controller.request_motion(
+                        self.request(snapshot["state_token"], max_speed_mps=speed)
+                    )
+
+    def test_speed_too_large_for_float_is_rejected(self) -> None:
+        # float() of an integer past the double range raises OverflowError,
+        # which is not a SafetyRejected and would escape the controller.
+        snapshot = self.controller.read_safety_state()
+        with self.assertRaisesRegex(SafetyRejected, "invalid_motion_request"):
+            self.controller.request_motion(
+                self.request(snapshot["state_token"], max_speed_mps=10**400)
+            )
+
     def test_target_must_be_in_approved_zone(self) -> None:
         snapshot = self.controller.read_safety_state()
         with self.assertRaisesRegex(

@@ -40,6 +40,11 @@ CREDIT_CHAIN_SCOPES = [
     frozenset({CAP_READ_BUREAU}),
 ]
 
+# The credit platform's root key. A verifier trusts this issuer, and only this
+# issuer, to start a chain. In a deployment it is configured, not generated;
+# here it is minted once per process so the demo stays offline.
+_PLATFORM_ROOT_PRIV, PLATFORM_ROOT = new_keypair()
+
 HOP_LABELS = [
     "credit-platform -> lead-credit-agent",
     "lead-credit-agent -> screening-sub-agent",
@@ -53,7 +58,7 @@ def _build(scopes: list[frozenset[str]]) -> list[DelegationCredential]:
     Continuity is preserved: each hop's issuer is the previous hop's subject.
     """
     chain: list[DelegationCredential] = []
-    priv, pub = new_keypair()
+    priv, pub = _PLATFORM_ROOT_PRIV, PLATFORM_ROOT
     parent_id: str | None = None
     for depth, scope in enumerate(scopes):
         next_priv, next_pub = new_keypair()
@@ -91,5 +96,10 @@ def as_chain_document(chain: list[DelegationCredential]) -> dict[str, Any]:
 
 
 def verify(chain: list[DelegationCredential]) -> None:
-    """Raise a ca2a_runtime error on the first invariant violation."""
-    verify_chain(chain)
+    """Raise a ca2a_runtime error on the first invariant violation.
+
+    trusted_root_issuers is what makes this an authorization check. Without it
+    verify_chain is structural only, and a self-consistent chain an attacker
+    signs from a key of their own passes every other invariant.
+    """
+    verify_chain(chain, trusted_root_issuers={PLATFORM_ROOT})

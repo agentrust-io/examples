@@ -76,7 +76,7 @@ def main() -> None:
     print("The write:risk-report authority stays with the lead agent by construction:")
     print("it is not in any delegated child's scope, so no descendant can regain it.")
     print()
-    print("Verify either chain from the CLI (same four invariants):")
+    print("Check either chain's structure from the CLI (it takes no trusted root):")
     print("  ca2a verify-chain --chain chain-output/credit-delegation-chain.json")
 
 

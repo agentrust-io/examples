@@ -10,6 +10,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import time
 from typing import Any, Callable
@@ -147,14 +148,15 @@ class IndependentSafetyController:
         target = request.get("target")
         try:
             speed = float(request["max_speed_mps"])
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise SafetyRejected("invalid_motion_request") from exc
 
         if not isinstance(motion_id, str) or not motion_id:
             raise SafetyRejected("invalid_motion_request")
         if not isinstance(target, str) or target not in ALLOWED_TARGETS:
             raise SafetyRejected("target_outside_approved_zone")
-        if speed < 0 or speed > MAX_SPEED_MPS:
+        # NaN fails both comparisons, so it must be refused explicitly.
+        if not math.isfinite(speed) or speed < 0 or speed > MAX_SPEED_MPS:
             raise SafetyRejected("speed_exceeds_controller_limit")
 
         request_for_hash = {

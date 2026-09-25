@@ -47,6 +47,8 @@ from wcm import (
     WeightCustodyManifest,
 )
 
+from _mock_attestation import waive_mock_verification
+
 
 def rule(title: str) -> None:
     print(f"\n{'=' * 72}\n{title}\n{'=' * 72}")
@@ -180,7 +182,7 @@ def build_manifest(*, weights_hash, license_text, serving, builder_id, custodian
         m["derived_from"] = derived_from
     if rights_holder is not None:
         m["rights_holder"] = rights_holder
-    return m
+    return waive_mock_verification(m)
 
 
 def sign(manifest, kp, role, signer):

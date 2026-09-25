@@ -49,6 +49,8 @@ from wcm import (
     WeightCustodyManifest,
 )
 
+from _mock_attestation import waive_mock_verification
+
 
 def rule(title: str) -> None:
     print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
@@ -148,7 +150,7 @@ def main() -> None:
         custodian_id="acme-model-governance",
         derivatives="fine-tune-only",
     )
-    base = WeightCustodyManifest.model_validate(base_doc)
+    base = WeightCustodyManifest.model_validate(waive_mock_verification(base_doc))
     base = base.with_signatures([
         sign(base, gov_builder, "builder", "acme-model-governance"),
         sign(base, gov_custodian, "custodian", "acme-model-governance"),
@@ -219,7 +221,7 @@ def main() -> None:
         derived_from=base.weights_hash,
         rights_holder={"base": "meta", "derivative": "acme"},
     )
-    deriv = WeightCustodyManifest.model_validate(deriv_doc)
+    deriv = WeightCustodyManifest.model_validate(waive_mock_verification(deriv_doc))
     deriv = deriv.with_signatures([
         sign(deriv, gov_builder, "builder", "acme-model-governance"),
         sign(deriv, gov_custodian, "custodian", "acme-model-governance"),

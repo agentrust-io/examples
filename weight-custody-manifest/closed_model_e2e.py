@@ -34,6 +34,8 @@ from wcm import (
     WeightCustodyManifest,
 )
 
+from _mock_attestation import waive_mock_verification
+
 
 def rule(title: str) -> None:
     print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
@@ -87,7 +89,7 @@ def main() -> int:
 
     rule("Step 0 - Certify: the manifest binds the secret weights + serving stack")
     doc = build_manifest(weights_hash, serving, "frontier-lab")
-    manifest = WeightCustodyManifest.model_validate(doc)
+    manifest = WeightCustodyManifest.model_validate(waive_mock_verification(doc))
     manifest = manifest.with_signatures([
         Ed25519Signer(builder).sign(manifest.unsigned_dict(), role="builder", signer="frontier-lab"),
         Ed25519Signer(custodian).sign(manifest.unsigned_dict(), role="custodian", signer="customer-platform-team"),

@@ -49,12 +49,12 @@ SELF = pathlib.Path(__file__).name
 
 
 def demos() -> list[pathlib.Path]:
-    """Every runnable demo, sorted, excluding tests and this runner."""
+    """Every runnable demo, sorted, excluding tests, shared helpers and this runner."""
     return sorted(
         path
         for path in HERE.glob("*.py")
         if path.name != SELF
-        and not path.name.startswith("test_")
+        and not path.name.startswith(("test_", "_"))
         and path.name not in REQUIRES_NETWORK
     )
 

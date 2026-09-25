@@ -47,6 +47,8 @@ from wcm import (
     WeightCustodyManifest,
 )
 
+from _mock_attestation import waive_mock_verification
+
 
 def rule(title: str) -> None:
     print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
@@ -109,7 +111,7 @@ def main() -> int:
             "attestation_cadence": "1h",
         },
     }
-    manifest = WeightCustodyManifest.model_validate(doc)
+    manifest = WeightCustodyManifest.model_validate(waive_mock_verification(doc))
     manifest = manifest.with_signatures([
         Ed25519Signer(builder_kp).sign(manifest.unsigned_dict(), role="builder", signer="frontier-lab"),
         Ed25519Signer(custodian_kp).sign(manifest.unsigned_dict(), role="custodian", signer="sovereign-national-ai"),

@@ -45,6 +45,8 @@ from wcm import (
     verify_provenance,
 )
 
+from _mock_attestation import waive_mock_verification
+
 from real_open_model import build_manifest, resolve_artifact, sha256_artifact
 
 FORMAT = "wcm-encrypted-derivative/v1"
@@ -254,7 +256,7 @@ def main() -> int:
             "signer": "opaque-wcm-builder",
         }
     }
-    manifest = WeightCustodyManifest.model_validate(manifest_doc)
+    manifest = WeightCustodyManifest.model_validate(waive_mock_verification(manifest_doc))
     manifest = manifest.with_signatures([
         Ed25519Signer(builder).sign(
             manifest.unsigned_dict(), role="builder", signer="opaque-wcm-builder"

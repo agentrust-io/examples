@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,8 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 ROOT = Path(__file__).parent
+MALFORMED = {"result": "invalid", "receipt_state": "malformed"}
+_B64URL = re.compile(r"[A-Za-z0-9_-]*")
 
 
 @dataclass(frozen=True)
@@ -27,8 +30,13 @@ def canonical_bytes(value: Any) -> bytes:
 
 
 def b64url_decode(value: str) -> bytes:
-    padding = "=" * (-len(value) % 4)
-    return base64.urlsafe_b64decode(value + padding)
+    """Strict unpadded base64url: one accepted spelling per byte string."""
+    if not isinstance(value, str) or _B64URL.fullmatch(value) is None:
+        raise ValueError("not unpadded base64url")
+    decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    if base64.urlsafe_b64encode(decoded).rstrip(b"=").decode() != value:
+        raise ValueError("non-canonical base64url")
+    return decoded
 
 
 def sha256_ref(value: Any) -> str:
@@ -68,10 +76,23 @@ def load_trusted_keys(path: Path = ROOT / "trusted-keys.json") -> dict[str, Trus
 def verify_fixture(
     path: Path, trusted_keys: dict[str, TrustedSigner] | None = None
 ) -> dict[str, Any]:
-    fixture = json.loads(path.read_text())
     if trusted_keys is None:
         trusted_keys = load_trusted_keys()
+    return verify_text(path.read_text(), trusted_keys)
 
+
+def verify_text(text: str, trusted_keys: dict[str, TrustedSigner]) -> dict[str, Any]:
+    """Verify fixture JSON. Always returns a verdict; never raises on bad input."""
+    try:
+        return verify_document(json.loads(text), trusted_keys)
+    except (KeyError, TypeError, AttributeError, ValueError, RecursionError):
+        # The fixture is untrusted input: a wrong shape is a verdict, not a crash.
+        return dict(MALFORMED)
+
+
+def verify_document(
+    fixture: dict[str, Any], trusted_keys: dict[str, TrustedSigner]
+) -> dict[str, Any]:
     trace = fixture["trace"]
     action = fixture["action"]
     receipts = fixture.get("receipts", [])
@@ -113,8 +134,12 @@ def verify_fixture(
             return {"result": "invalid", "receipt_state": "signature_format"}
 
         try:
+            signature_bytes = b64url_decode(signature.removeprefix("ed25519:"))
+        except ValueError:
+            return {"result": "invalid", "receipt_state": "signature_format"}
+        try:
             signer.public_key.verify(
-                b64url_decode(signature.removeprefix("ed25519:")),
+                signature_bytes,
                 canonical_bytes(receipt_preimage(receipt)),
             )
         except InvalidSignature:

@@ -15,7 +15,7 @@ The Cedar policy blocks any treatment plan write where `patient_risk_category ==
 The agent runs `ehr.drug_interaction_check` against the patient's current medications and documented allergies, then passes `has_severe_contraindication` into the write call. A Cedar rule blocks the write when a severe contraindication is present, so the guardrail acts on the actual interaction result rather than on a static flag.
 
 **3. HIPAA PHI protection at the tool boundary**
-All four tools are classified `compliance_domain: hipaa_phi` in the attested catalog. A Cedar rule forbids PHI tools when no attestation evidence is present, enforcing "PHI only flows through attested runtimes" at the policy layer.
+All four tools are classified `compliance_domain: hipaa_phi` in the attested catalog. A Cedar rule forbids PHI tools when the runtime reports no attestation platform at all (`attestation_platform == "unknown"`). A software-only dev-mode runtime reports `software-only` and passes this gate, which is how the demo runs without a TEE. To require hardware attestation for PHI, forbid unless `attestation_platform` is one of the hardware platforms you accept.
 
 **4. Cryptographic proof of the tool call sequence**
 Every call is recorded in a hash-chained audit log persisted to SQLite. Closing the session seals the chain into a signed `RuntimeClaim` (the TRACE Trust Record): which tools ran, in what order, what was denied - verifiable without trusting the agent process.

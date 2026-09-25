@@ -18,7 +18,7 @@ The rules in `policy/allow.cedar` encode the bank's controls directly. Each forb
 The agent screens the client, pulls a bureau report, aggregates group exposure and runs the PD/LGD model, then passes the outcome of those steps (CDD status, IFRS 9 stage, concentration breach, facility amount) into the write call. The Cedar guardrails act on those values, so the deny reflects the actual credit decision.
 
 **4. Attestation-gated data access (DORA Art. 9)**
-A Cedar rule forbids confidential (`mnpi`) tools when no attestation evidence is present: confidential financial data only flows through attested runtimes.
+A Cedar rule forbids confidential (`mnpi`) tools when the runtime reports no attestation platform at all (`attestation_platform == "unknown"`). A software-only dev-mode runtime reports `software-only` and passes this gate, which is how the demo runs without a TEE. To require hardware attestation for `mnpi` data, forbid unless `attestation_platform` is one of the hardware platforms you accept.
 
 ---
 

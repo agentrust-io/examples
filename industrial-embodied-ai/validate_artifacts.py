@@ -18,6 +18,16 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 BASE = Path(__file__).resolve().parent
 
 
+class ArtifactValidationError(Exception):
+    """A committed artifact failed validation."""
+
+
+def require(condition: object, message: str) -> None:
+    # Not `assert`: python -O strips asserts, and every check here would pass.
+    if not condition:
+        raise ArtifactValidationError(message)
+
+
 def canonical_bytes(value: Any) -> bytes:
     return canonicalize(value)
 
@@ -92,8 +102,15 @@ def compute_manifest_catalog_root(tools: list[dict[str, Any]]) -> str:
 
 def verify_manifest_signature(manifest: dict[str, Any]) -> None:
     public_key = json.loads((BASE / "manifest-public-key.json").read_text())
-    assert manifest["signature"]["key_id"] == public_key["key_id"]
+    require(
+        manifest["signature"]["key_id"] == public_key["key_id"],
+        "manifest signed by an unexpected key",
+    )
     signed_fields = manifest["signature"]["signed_fields"]
+    # signed_fields travels inside the manifest, so a field it leaves out is
+    # unauthenticated. Every top-level field except the signature must be listed.
+    unsigned = set(manifest) - {"signature"} - set(signed_fields)
+    require(not unsigned, f"manifest fields outside the signature: {sorted(unsigned)}")
     body = {key: manifest[key] for key in signed_fields if key in manifest}
     Ed25519PublicKey.from_public_bytes(
         b64url_decode(public_key["public_key_base64url"])
@@ -120,7 +137,10 @@ def main() -> None:
         definition_hash = hash_bytes(
             canonical_bytes(entry["approved_definition"])
         )
-        assert definition_hash == entry["definition_hash"], entry["tool_name"]
+        require(
+            definition_hash == entry["definition_hash"],
+            f"catalog definition_hash mismatch: {entry['tool_name']}",
+        )
 
     policy_hash = compute_policy_bundle_hash()
     catalog_hash = compute_cmcp_catalog_hash(catalog)
@@ -131,16 +151,29 @@ def main() -> None:
         (BASE / "artifacts/system-prompt.txt").read_bytes()
     )
 
-    assert expected["cmcp_policy_bundle_hash"] == policy_hash
-    assert expected["cmcp_catalog_hash"] == catalog_hash
-    assert expected["agent_manifest_tool_catalog_root"] == manifest_catalog_root
-    assert expected["system_prompt_hash"] == prompt_hash
-    assert manifest["artifacts"]["policy_bundle"]["hash"] == policy_hash
-    assert (
-        manifest["artifacts"]["tool_manifest"]["catalog_hash"]
-        == manifest_catalog_root
+    require(
+        expected["cmcp_policy_bundle_hash"] == policy_hash,
+        "policy bundle hash mismatch",
     )
-    assert manifest["artifacts"]["system_prompt"]["hash"] == prompt_hash
+    require(expected["cmcp_catalog_hash"] == catalog_hash, "cMCP catalog hash mismatch")
+    require(
+        expected["agent_manifest_tool_catalog_root"] == manifest_catalog_root,
+        "tool catalog root mismatch",
+    )
+    require(expected["system_prompt_hash"] == prompt_hash, "system prompt hash mismatch")
+    require(
+        manifest["artifacts"]["policy_bundle"]["hash"] == policy_hash,
+        "manifest policy bundle hash mismatch",
+    )
+    require(
+        manifest["artifacts"]["tool_manifest"]["catalog_hash"]
+        == manifest_catalog_root,
+        "manifest tool catalog hash mismatch",
+    )
+    require(
+        manifest["artifacts"]["system_prompt"]["hash"] == prompt_hash,
+        "manifest system prompt hash mismatch",
+    )
     verify_manifest_signature(manifest)
 
     verification = verify_trace_claim(
@@ -161,15 +194,22 @@ def main() -> None:
         "attestation_freshness",
         "audit_chain",
     }
-    assert required <= set(verification.verified_fields)
-    assert claim["trace"]["runtime"]["platform"] == "software-only"
+    missing = required - set(verification.verified_fields)
+    require(not missing, f"TRACE claim fields not verified: {sorted(missing)}")
+    require(
+        claim["trace"]["runtime"]["platform"] == "software-only",
+        "committed fixture is expected to be a software-only record",
+    )
 
     bundle_verification = verify_audit_bundle(
         audit_bundle,
         claim,
         external_evidence_keys=external_evidence_keys(),
     )
-    assert bundle_verification.verified, bundle_verification.failures
+    require(
+        bundle_verification.verified,
+        f"audit bundle failed verification: {bundle_verification.failures}",
+    )
     receipt_count = sum(
         1
         for entry in audit_bundle.get("entries", [])

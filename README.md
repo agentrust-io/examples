@@ -2,7 +2,7 @@
 [![cMCP](https://img.shields.io/badge/Uses-cMCP_Runtime-7c3aed)](https://github.com/agentrust-io/cmcp)
 [![Agent Manifest](https://img.shields.io/badge/Uses-Agent_Manifest-0ea5e9)](https://github.com/agentrust-io/agent-manifest)
 [![cA2A](https://img.shields.io/badge/Uses-cA2A-7c3aed)](https://github.com/agentrust-io/ca2a)
-[![Discord](https://dcbadge.limes.pink/api/server/9JWNpH7E?style=flat)](https://discord.gg/9JWNpH7E)
+[![Discord](https://dcbadge.limes.pink/api/server/grgzFEHgkj?style=flat)](https://discord.gg/grgzFEHgkj)
 
 # agentrust-io Examples
 
@@ -61,7 +61,7 @@ Launching at Confidential Computing Summit, San Francisco, June 23 2026.
 
 ## Community
 
-Questions, feedback, integration help: [Discord](https://discord.gg/9JWNpH7E).
+Questions, feedback, integration help: [Discord](https://discord.gg/grgzFEHgkj).
 
 ## License
 

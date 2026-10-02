@@ -52,6 +52,55 @@ TOOLS = {
 }
 
 
+# Upstream definitions are independent of the gateway catalog used for drift checks.
+TOOL_DEFINITIONS = [
+    {
+        "name": "people.headcount_analytics",
+        "description": "Run a read-only, aggregate people-analytics query (no individual records)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"metric": {"type": "string"}, "period": {"type": "string"}},
+            "required": ["metric"],
+        },
+    },
+    {
+        "name": "people.employee_record_lookup",
+        "description": "Look up an individual employee record",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "employee_id": {"type": "string"},
+                "legal_basis": {"type": "string"},
+                "include_special_category": {"type": "boolean"},
+            },
+            "required": ["employee_id"],
+        },
+    },
+    {
+        "name": "people.data_export",
+        "description": "Export employee records to a destination region",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {"type": "string"},
+                "destination_region": {"type": "string"},
+                "legal_basis": {"type": "string"},
+            },
+            "required": ["destination_region"],
+        },
+    },
+    {
+        "name": "people.config_update",
+        "description": "Update tenant configuration settings",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"key": {"type": "string"}, "value": {"type": "string"}},
+            "required": ["key", "value"],
+        },
+    },
+]
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         if self.path != "/mcp":
@@ -59,6 +108,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", 0))
         request = json.loads(self.rfile.read(length))
+        method = request.get("method", "")
+        if method == "tools/list":
+            self._reply(200, {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "result": {"tools": TOOL_DEFINITIONS},
+            })
+            return
+        if method != "tools/call":
+            self._reply(200, {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "error": {"code": -32601, "message": f"unknown method: {method}"},
+            })
+            return
         params = request.get("params", {})
         tool = params.get("name", "")
         handler = TOOLS.get(tool)

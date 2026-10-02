@@ -57,6 +57,81 @@ TOOLS = {
 }
 
 
+# Upstream definitions are independent of the gateway catalog used for drift checks.
+TOOL_DEFINITIONS = [
+    {
+        "name": "ehr.patient_record_lookup",
+        "description": "Look up patient clinical record from the EHR system",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "patient_id": {"type": "string"},
+                "record_type": {
+                    "type": "string",
+                    "enum": [
+                        "demographics",
+                        "diagnoses",
+                        "medications",
+                        "labs",
+                        "vitals",
+                        "full",
+                    ],
+                },
+            },
+            "required": ["patient_id"],
+        },
+    },
+    {
+        "name": "ehr.clinical_decision_support",
+        "description": "Run AI-assisted differential diagnosis and clinical decision support",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "patient_id": {"type": "string"},
+                "presenting_symptoms": {"type": "array", "items": {"type": "string"}},
+                "lab_values": {"type": "object"},
+            },
+            "required": ["patient_id", "presenting_symptoms"],
+        },
+    },
+    {
+        "name": "ehr.drug_interaction_check",
+        "description": "Check proposed medications against the patient's current medications and documented allergies",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "patient_id": {"type": "string"},
+                "proposed_medications": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["patient_id", "proposed_medications"],
+        },
+    },
+    {
+        "name": "ehr.treatment_plan_writer",
+        "description": "Write a treatment plan to the patient record",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "patient_id": {"type": "string"},
+                "diagnosis": {"type": "string"},
+                "treatment": {"type": "string"},
+                "patient_risk_category": {
+                    "type": "string",
+                    "enum": ["standard", "high"],
+                },
+                "has_severe_contraindication": {"type": "boolean"},
+            },
+            "required": [
+                "patient_id",
+                "diagnosis",
+                "treatment",
+                "patient_risk_category",
+            ],
+        },
+    },
+]
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         if self.path != "/mcp":
@@ -64,6 +139,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", 0))
         request = json.loads(self.rfile.read(length))
+        method = request.get("method", "")
+        if method == "tools/list":
+            self._reply(200, {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "result": {"tools": TOOL_DEFINITIONS},
+            })
+            return
+        if method != "tools/call":
+            self._reply(200, {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "error": {"code": -32601, "message": f"unknown method: {method}"},
+            })
+            return
         params = request.get("params", {})
         tool = params.get("name", "")
         handler = TOOLS.get(tool)

@@ -12,6 +12,15 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PORT = 8080
+ECHO_TOOL = {
+    "name": "test.echo",
+    "description": "Echo a message back for testing",
+    "inputSchema": {
+        "type": "object",
+        "properties": {"message": {"type": "string"}},
+        "required": ["message"],
+    },
+}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -21,6 +30,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", 0))
         request = json.loads(self.rfile.read(length))
+        method = request.get("method", "")
+        if method == "tools/list":
+            self._reply(200, {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "result": {"tools": [ECHO_TOOL]},
+            })
+            return
+        if method != "tools/call":
+            self._reply(200, {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "error": {"code": -32601, "message": f"unknown method: {method}"},
+            })
+            return
         params = request.get("params", {})
         tool = params.get("name", "")
         if tool != "test.echo":

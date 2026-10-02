@@ -1,4 +1,8 @@
-﻿[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+﻿> **Moved:** Current development, issues, and pull requests are in [agentrust-io/integrations/examples](https://github.com/agentrust-io/integrations/tree/main/examples). This repository retains historical commits, releases, and issue links.
+>
+> Clone `https://github.com/agentrust-io/integrations.git` and use the `examples/` directory. The original license remains in that directory.
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![cMCP](https://img.shields.io/badge/Uses-cMCP_Runtime-7c3aed)](https://github.com/agentrust-io/cmcp)
 [![Agent Manifest](https://img.shields.io/badge/Uses-Agent_Manifest-0ea5e9)](https://github.com/agentrust-io/agent-manifest)
 [![cA2A](https://img.shields.io/badge/Uses-cA2A-7c3aed)](https://github.com/agentrust-io/ca2a)
